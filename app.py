@@ -51,6 +51,9 @@ LIKERT_IMP = {
 # ITEMS (kode + pernyataan)
 # =========================
 ITEMS = [
+    # =========================
+    # Data & Services Integration
+    # =========================
     ("Data & Services Integration", "DSI1",
      "Aplikasi telemedicine memungkinkan informasi terkait telekonsultasi klinis (hasil anamnesis, diagnosis, pemeriksaan fisik, penelaahan hasil pemeriksaan penunjang, anjuran, edukasi, pengobatan, dan/atau rujukan yang diberikan) dapat tercatat secara tepat dalam rekam medis pasien sesuai dengan ketentuan peraturan perundang-undangan"),
     ("Data & Services Integration", "DSI2",
@@ -62,11 +65,17 @@ ITEMS = [
     ("Data & Services Integration", "DSI5",
      "Aplikasi telemedicine menyediakan data penting yang saya perlukan dalam memberikan layanan kesehatan jarak jauh"),
 
+    # =========================
+    # Clinical Decision Support
+    # =========================
     ("Clinical Decision Support", "CDS1",
      "Aplikasi telemedicine dapat secara otomatis memberikan rekomendasi diagnosis, anjuran, edukasi, dan/atau penatalaksanaan pasien (termasuk pengobatan) kepada dokter berdasarkan data dan hasil pemeriksaan pasien"),
     ("Clinical Decision Support", "CDS2",
      "Aplikasi telemedicine dapat secara otomatis mencegah penulisan resep untuk obat-obat yang dikecualikan dalam peraturan pemerintah; memiliki potensi interaksi dengan obat lainnya; dan/atau tidak sesuai dengan kondisi khusus pasien, seperti alergi, hamil, menyusui, atau kondisi lainnya, sehingga hanya obat yang aman dan sesuai yang dapat diresepkan"),
 
+    # =========================
+    # Clinical Communication
+    # =========================
     ("Clinical Communication", "CCM1",
      "Aplikasi telemedicine dapat memfasilitasi pertukaran informasi antar dokter, seperti informasi mengenai kondisi kesehatan dan/atau hasil pemeriksaan pasien yang dirujuk"),
     ("Clinical Communication", "CCM2",
@@ -78,6 +87,9 @@ ITEMS = [
     ("Clinical Communication", "CCM5",
      "Aplikasi telemedicine memungkinkan pasien untuk memberikan penilaian terhadap layanan dan/atau persetujuan/penolakan terhadap rekomendasi medis yang saya berikan"),
 
+    # =========================
+    # Clinical Task Support
+    # =========================
     ("Clinical Task Support", "CTS1",
      "Aplikasi telemedicine memungkinkan saya, sebagai dokter yang berwenang, untuk mengakses, meninjau, dan/atau memperbarui data rekam medis pasien"),
     ("Clinical Task Support", "CTS2",
@@ -93,19 +105,21 @@ ITEMS = [
     ("Clinical Task Support", "CTS7",
      "Aplikasi telemedicine memungkinkan saya untuk melakukan penatalaksanaan pasien, termasuk pemberian pengobatan"),
     ("Clinical Task Support", "CTS8",
-     "Aplikasi telemedicine memungkinkan saya untuk memberikan resep obat dan/atau alat kesehatan yang hanya dapat digunakan untuk satu kali pelayanan resep (tidak dapat diulang) kepada pasien"),
-    ("Clinical Task Support", "CTS9",
      "Aplikasi telemedicine memungkinkan saya memberikan rujukan kepada pasien untuk melakukan pemeriksaan kesehatan lanjutan ke fasilitas pelayanan kesehatan"),
-    ("Clinical Task Support", "CTS10",
-     "Aplikasi telemedicine memungkinkan saya untuk memberikan surat keterangan sakit kepada pasien"),
-    ("Clinical Task Support", "CTS11",
+    ("Clinical Task Support", "CTS9",
      "Aplikasi telemedicine memungkinkan saya untuk memantau perkembangan kondisi pasien setelah pengobatan diberikan"),
 
+    # =========================
+    # Scheduling & Notification
+    # =========================
     ("Scheduling & Notification", "SCN1",
      "Aplikasi telemedicine memungkinkan saya untuk mengatur jadwal konsultasi dan/atau follow-up dengan pasien"),
     ("Scheduling & Notification", "SCN2",
      "Aplikasi telemedicine menyediakan notifikasi yang saya butuhkan dalam memberikan layanan kesehatan jarak jauh kepada pasien"),
 
+    # =========================
+    # System Reliability
+    # =========================
     ("System Reliability", "SRB1",
      "Aplikasi telemedicine yang saya gunakan dapat diandalkan untuk selalu aktif dan/atau tersedia saat saya membutuhkannya"),
     ("System Reliability", "SRB2",
@@ -113,16 +127,25 @@ ITEMS = [
     ("System Reliability", "SRB3",
      "Jika aplikasi telemedicine sedang mengalami kerusakan dan/atau perawatan sistem, terdapat jaminan bahwa aplikasi dapat digunakan kembali dalam waktu tertentu (misalnya 24 jam)"),
 
+    # =========================
+    # Ease of Use & Support
+    # =========================
     ("Ease of Use & Support", "EUS1",
      "Aplikasi telemedicine mudah untuk dipelajari dan/atau digunakan"),
     ("Ease of Use & Support", "EUS2",
      "Aplikasi telemedicine menyediakan bantuan bagi pengguna yang mengalami kesulitan dalam dalam menggunakan aplikasi"),
 
+    # =========================
+    # Privacy & Security
+    # =========================
     ("Privacy & Security", "PSC1",
      "Aplikasi telemedicine menyediakan mekanisme verifikasi dan/atau validasi keabsahan pengguna untuk memastikan bahwa hanya individu yang berwenang yang dapat mengakses data"),
     ("Privacy & Security", "PSC2",
      "Aplikasi telemedicine memiliki fitur keamanan yang baik untuk melindungi data dari akses yang tidak sah dan/atau kebocoran data"),
 
+    # =========================
+    # Data Quality & Accessibility
+    # =========================
     ("Data Quality & Accessibility", "DQA1",
      "Aplikasi telemedicine menyediakan data yang berkualitas (akurat, mutakhir, dan/atau memiliki tingkat detail yang sesuai) untuk tugas saya memberikan layanan kesehatan jarak jauh kepada pasien"),
     ("Data Quality & Accessibility", "DQA2",

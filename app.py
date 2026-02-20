@@ -481,6 +481,32 @@ def plot_ipa_dimensions(dim_stats, x_cut, y_cut, show_iso_diagonal=False):
     return fig
 
 
+def _round_df_numeric(df_in: pd.DataFrame, decimals: int = 2) -> pd.DataFrame:
+    """Round only numeric columns; keep text columns unchanged."""
+    df_out = df_in.copy()
+    num_cols = df_out.select_dtypes(include=["number"]).columns
+    if len(num_cols) > 0:
+        df_out[num_cols] = df_out[num_cols].round(decimals)
+    return df_out
+
+
+def _build_quadrant_table_from_stats(stats_df: pd.DataFrame, label_col: str, quad_col: str = "Quadrant") -> pd.DataFrame:
+    """
+    Output: one row per quadrant with list of labels (comma-separated).
+    """
+    quad_order = [
+        "I - Concentrate Here",
+        "II - Keep Up the Good Work",
+        "III - Low Priority",
+        "IV - Possible Overkill",
+    ]
+    rows = []
+    for q in quad_order:
+        labels = stats_df.loc[stats_df[quad_col] == q, label_col].astype(str).tolist()
+        rows.append({"Quadrant": q, "Items": ", ".join(labels) if labels else ""})
+    return pd.DataFrame(rows)
+
+
 # =========================
 # SIMPLE ROUTING: Respondent vs Admin
 # =========================
@@ -651,7 +677,63 @@ else:
             st.info("Belum ada data.")
         else:
             stats, x_cut, y_cut, quad_lists = compute_stats_and_ipa(df)
+            dim_stats, dx_cut, dy_cut, dim_quad_lists = compute_dimension_stats_and_ipa(df)
 
+            # ----------------------------
+            # DOWNLOAD ALL RESULTS
+            # ----------------------------
+            st.subheader("Download hasil (CSV)")
+            cdl1, cdl2, cdl3, cdl4 = st.columns(4)
+
+            raw_csv = df.sort_values("created_at", ascending=False).to_csv(index=False).encode("utf-8-sig")
+
+            stats_show_dl = _round_df_numeric(stats, 2)
+            stats_csv = stats_show_dl.to_csv(index=False).encode("utf-8-sig")
+
+            dim_show_dl = _round_df_numeric(dim_stats, 2)
+            dim_csv = dim_show_dl.to_csv(index=False).encode("utf-8-sig")
+
+            quad_item_tbl = _build_quadrant_table_from_stats(stats, label_col="Item")
+            quad_dim_tbl = _build_quadrant_table_from_stats(dim_stats, label_col="Dimension")
+            quad_items_csv = quad_item_tbl.to_csv(index=False).encode("utf-8-sig")
+            quad_dims_csv = quad_dim_tbl.to_csv(index=False).encode("utf-8-sig")
+
+            with cdl1:
+                st.download_button(
+                    "⬇️ Raw Data (CSV)",
+                    data=raw_csv,
+                    file_name=f"TATTFQ_raw_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                    mime="text/csv",
+                )
+            with cdl2:
+                st.download_button(
+                    "⬇️ Statistik Item (CSV)",
+                    data=stats_csv,
+                    file_name=f"TATTFQ_stats_items_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                    mime="text/csv",
+                )
+            with cdl3:
+                st.download_button(
+                    "⬇️ Statistik Dimensi (CSV)",
+                    data=dim_csv,
+                    file_name=f"TATTFQ_stats_dimensions_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                    mime="text/csv",
+                )
+            with cdl4:
+                st.download_button(
+                    "⬇️ Kuadran (CSV)",
+                    data=(quad_items_csv + b"\n\n" + quad_dims_csv),
+                    file_name=f"TATTFQ_quadrants_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                    mime="text/csv",
+                )
+
+            st.caption("Catatan: file 'Kuadran (CSV)' berisi 2 bagian: kuadran item lalu kuadran dimensi.")
+
+            st.divider()
+
+            # ----------------------------
+            # ITEMS
+            # ----------------------------
             st.subheader("Cut-off (Data-centered) — Items")
             c1, c2 = st.columns(2)
             with c1:
@@ -660,8 +742,9 @@ else:
                 st.metric("Importance cut-off (mean global)", f"{y_cut:.3f}")
 
             st.subheader("Statistik per item (min/max/mean) + GAP(P-I) + Kuadran")
+            stats_show = _round_df_numeric(stats, 2)
             st.dataframe(
-                stats.sort_values("Gap_mean(P-I)", ascending=True),
+                stats_show.sort_values("Gap_mean(P-I)", ascending=True),
                 use_container_width=True,
             )
 
@@ -679,8 +762,9 @@ else:
 
             st.divider()
 
-            dim_stats, dx_cut, dy_cut, dim_quad_lists = compute_dimension_stats_and_ipa(df)
-
+            # ----------------------------
+            # DIMENSIONS
+            # ----------------------------
             st.subheader("Cut-off (Data-centered) — Dimensions")
             c1, c2 = st.columns(2)
             with c1:
@@ -689,8 +773,9 @@ else:
                 st.metric("Importance cut-off (mean dim)", f"{dy_cut:.3f}")
 
             st.subheader("Statistik per dimensi (min/max/mean) + GAP(P-I) + Kuadran")
+            dim_show = _round_df_numeric(dim_stats, 2)
             st.dataframe(
-                dim_stats.sort_values("Gap_mean(P-I)", ascending=True),
+                dim_show.sort_values("Gap_mean(P-I)", ascending=True),
                 use_container_width=True,
             )
 
@@ -719,6 +804,8 @@ else:
             st.info("Belum ada data.")
         else:
             stats, x_cut, y_cut, quad_lists = compute_stats_and_ipa(df)
+            dim_stats, dx_cut, dy_cut, dim_quad_lists = compute_dimension_stats_and_ipa(df)
+
             st.subheader("Daftar item per kuadran")
             for q, items in quad_lists.items():
                 st.markdown(f"### {q}")
@@ -726,7 +813,6 @@ else:
 
             st.divider()
 
-            dim_stats, dx_cut, dy_cut, dim_quad_lists = compute_dimension_stats_and_ipa(df)
             st.subheader("Daftar dimensi per kuadran")
             for q, dims in dim_quad_lists.items():
                 st.markdown(f"### {q}")

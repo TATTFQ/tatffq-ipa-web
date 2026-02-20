@@ -1,11 +1,11 @@
 import os
-import json
 from datetime import datetime
 
 import streamlit as st
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+import streamlit.components.v1 as components
 
 from sqlalchemy import create_engine, text, bindparam
 from sqlalchemy.dialects.postgresql import JSONB
@@ -189,6 +189,55 @@ DIM_ABBR = {
 DIM_CODES = {DIM_ABBR[dim]: [code for code, _ in items] for dim, items in DIMS.items()}
 
 # =========================
+# UX helpers (scroll, state)
+# =========================
+def _scroll_to_top():
+    components.html(
+        """
+        <script>
+          window.parent.document.querySelector('section.main').scrollTo(0, 0);
+        </script>
+        """,
+        height=0,
+    )
+
+
+def _ensure_default_radio_state():
+    for code in ITEM_CODES:
+        st.session_state.setdefault(f"perf_{code}", 1)
+        st.session_state.setdefault(f"imp_{code}", 1)
+
+
+def _sync_dict_from_widget(prefix: str) -> dict:
+    out = {}
+    for code in ITEM_CODES:
+        out[code] = int(st.session_state.get(f"{prefix}_{code}", 1))
+    return out
+
+
+def _reset_survey_state():
+    st.session_state.step = 1
+    st.session_state.perf = {}
+    st.session_state.imp = {}
+    for code in ITEM_CODES:
+        st.session_state[f"perf_{code}"] = 1
+        st.session_state[f"imp_{code}"] = 1
+    st.session_state.confirm_submit = False
+    st.session_state.pending_respondent_code = ""
+    st.session_state.pending_meta = {}
+
+
+def _request_submit_confirmation(respondent_code: str, meta: dict):
+    st.session_state.pending_respondent_code = respondent_code or ""
+    st.session_state.pending_meta = meta or {}
+    st.session_state.confirm_submit = True
+
+
+def _cancel_submit_confirmation():
+    st.session_state.confirm_submit = False
+
+
+# =========================
 # DB helpers
 # =========================
 def insert_response(respondent_code, meta, perf_dict, imp_dict):
@@ -216,6 +265,24 @@ def insert_response(respondent_code, meta, perf_dict, imp_dict):
         st.error("Gagal menyimpan ke database. Detail error:")
         st.exception(e)
         st.stop()
+
+
+def _confirm_and_submit():
+    # ambil jawaban terbaru dari widget
+    st.session_state.perf = _sync_dict_from_widget("perf")
+    st.session_state.imp = _sync_dict_from_widget("imp")
+
+    insert_response(
+        respondent_code=(st.session_state.pending_respondent_code.strip()
+                         if st.session_state.pending_respondent_code else ""),
+        meta=st.session_state.pending_meta,
+        perf_dict=st.session_state.perf,
+        imp_dict=st.session_state.imp,
+    )
+
+    st.success("Terima kasih! Jawaban Anda telah tersimpan.")
+    _scroll_to_top()
+    _reset_survey_state()
 
 
 def load_all_responses(limit=5000):
@@ -345,10 +412,6 @@ def compute_stats_and_ipa(df_flat: pd.DataFrame):
 
 
 def compute_dimension_stats_and_ipa(df_flat: pd.DataFrame):
-    """
-    Skor dimensi per responden = rata-rata item dalam dimensi tersebut.
-    Lalu dihitung min/max/mean antar responden, gap mean, dan kuadran (data-centered khusus dimensi).
-    """
     if df_flat is None or df_flat.empty:
         cols = [
             "Dimension", "Dimension_name", "n_items",
@@ -426,12 +489,7 @@ def compute_dimension_stats_and_ipa(df_flat: pd.DataFrame):
 
 
 def _plot_iso_diagonal(ax, x_cut, y_cut, xlim, ylim):
-    """
-    Garis diagonal slope=1 yang melewati titik (x_cut, y_cut):
-      y - y_cut = 1*(x - x_cut)  =>  y = x + (y_cut - x_cut)
-    Digambar pada rentang yang sesuai limit axis.
-    """
-    b = y_cut - x_cut  # intercept untuk y = x + b
+    b = y_cut - x_cut
     x0, x1 = xlim
     y0 = x0 + b
     y1 = x1 + b
@@ -464,10 +522,7 @@ def plot_ipa_items(stats, x_cut, y_cut, show_iso_diagonal=False):
 
     ax.set_xlabel("Performance (Mean)")
     ax.set_ylabel("Importance (Mean)")
-
-    # supaya garis slope=1 tampil sebagai 45° secara visual
     ax.set_aspect("equal", adjustable="box")
-
     return fig
 
 
@@ -497,15 +552,11 @@ def plot_ipa_dimensions(dim_stats, x_cut, y_cut, show_iso_diagonal=False):
 
     ax.set_xlabel("Performance (Mean)")
     ax.set_ylabel("Importance (Mean)")
-
-    # supaya garis slope=1 tampil sebagai 45° secara visual
     ax.set_aspect("equal", adjustable="box")
-
     return fig
 
 
 def _round_df_numeric(df_in: pd.DataFrame, decimals: int = 2) -> pd.DataFrame:
-    """Round only numeric columns; keep text columns unchanged."""
     df_out = df_in.copy()
     num_cols = df_out.select_dtypes(include=["number"]).columns
     if len(num_cols) > 0:
@@ -514,9 +565,6 @@ def _round_df_numeric(df_in: pd.DataFrame, decimals: int = 2) -> pd.DataFrame:
 
 
 def _build_quadrant_table_from_stats(stats_df: pd.DataFrame, label_col: str, quad_col: str = "Quadrant") -> pd.DataFrame:
-    """
-    Output: one row per quadrant with list of labels (comma-separated).
-    """
     quad_order = [
         "I - Concentrate Here",
         "II - Keep Up the Good Work",
@@ -547,6 +595,20 @@ if page == "Responden":
         st.session_state.step = 1
         st.session_state.perf = {}
         st.session_state.imp = {}
+        st.session_state.confirm_submit = False
+        st.session_state.pending_respondent_code = ""
+        st.session_state.pending_meta = {}
+
+    _ensure_default_radio_state()
+
+    # progress indicator
+    step = st.session_state.get("step", 1)
+    st.progress(0.5 if step == 1 else 1.0)
+    c1, c2 = st.columns(2)
+    with c1:
+        st.markdown("✅ **Performance**" if step == 1 else "☑️ Performance")
+    with c2:
+        st.markdown("⏳ **Importance**" if step == 1 else "✅ **Importance**")
 
     with st.expander("Petunjuk Skala", expanded=False):
         c1, c2 = st.columns(2)
@@ -582,17 +644,20 @@ if page == "Responden":
             for code, text_ in items:
                 with st.container(border=True):
                     st.markdown(f"**{code}.** {text_}")
-                    st.session_state.perf[code] = st.radio(
+                    val = st.radio(
                         f"{code} — Performance",
                         options=list(LIKERT_PERF.keys()),
                         format_func=lambda x: f"{x} — {LIKERT_PERF[x]}",
                         horizontal=True,
                         key=f"perf_{code}",
                     )
+                    st.session_state.perf[code] = int(val)
             st.divider()
 
         if st.button("Lanjut ke Tahap 2 (Importance) ➜", type="primary"):
+            st.session_state.perf = _sync_dict_from_widget("perf")
             st.session_state.step = 2
+            _scroll_to_top()
             st.rerun()
 
     else:
@@ -604,40 +669,48 @@ if page == "Responden":
             for code, text_ in items:
                 with st.container(border=True):
                     st.markdown(f"**{code}.** {text_}")
-                    st.session_state.imp[code] = st.radio(
+                    val = st.radio(
                         f"{code} — Importance",
                         options=list(LIKERT_IMP.keys()),
                         format_func=lambda x: f"{x} — {LIKERT_IMP[x]}",
                         horizontal=True,
                         key=f"imp_{code}",
                     )
+                    st.session_state.imp[code] = int(val)
             st.divider()
 
         left, right = st.columns(2)
         with left:
             if st.button("⬅ Kembali ke Performance"):
+                st.session_state.perf = _sync_dict_from_widget("perf")
+                st.session_state.imp = _sync_dict_from_widget("imp")
                 st.session_state.step = 1
+                _scroll_to_top()
                 st.rerun()
 
         with right:
-            if st.button("✅ Submit", type="primary"):
-                missing_p = [k for k in ITEM_CODES if k not in st.session_state.perf]
-                missing_i = [k for k in ITEM_CODES if k not in st.session_state.imp]
-                if missing_p or missing_i:
-                    st.error("Masih ada item yang belum terisi. Mohon lengkapi semua.")
-                    st.stop()
-
-                insert_response(
+            submit_disabled = st.session_state.get("confirm_submit", False)
+            if st.button("✅ Submit", type="primary", disabled=submit_disabled):
+                st.session_state.perf = _sync_dict_from_widget("perf")
+                st.session_state.imp = _sync_dict_from_widget("imp")
+                _request_submit_confirmation(
                     respondent_code=(respondent_code.strip() if respondent_code else ""),
                     meta=meta,
-                    perf_dict=st.session_state.perf,
-                    imp_dict=st.session_state.imp,
                 )
-                st.success("Terima kasih! Jawaban Anda telah tersimpan.")
+                _scroll_to_top()
+                st.rerun()
 
-                st.session_state.step = 1
-                st.session_state.perf = {}
-                st.session_state.imp = {}
+        # Konfirmasi submit (Ya / Tidak)
+        if st.session_state.get("confirm_submit", False):
+            st.warning(
+                "Yakin ingin submit? Setelah submit, jawaban akan tersimpan dan form akan direset.",
+                icon="⚠️"
+            )
+            c_yes, c_no = st.columns(2)
+            with c_yes:
+                st.button("✅ Ya, submit sekarang", type="primary", on_click=_confirm_and_submit)
+            with c_no:
+                st.button("❌ Tidak, kembali", on_click=_cancel_submit_confirmation)
 
 # ---------------------------------
 # ADMIN PAGE
@@ -702,20 +775,14 @@ else:
             stats, x_cut, y_cut, quad_lists = compute_stats_and_ipa(df)
             dim_stats, dx_cut, dy_cut, dim_quad_lists = compute_dimension_stats_and_ipa(df)
 
-            # ----------------------------
-            # DOWNLOAD ALL RESULTS
-            # ----------------------------
             st.subheader("Download hasil (CSV)")
             cdl1, cdl2, cdl3, cdl4 = st.columns(4)
 
             raw_csv = df.sort_values("created_at", ascending=False).to_csv(index=False).encode("utf-8-sig")
-
             stats_show_dl = _round_df_numeric(stats, 2)
             stats_csv = stats_show_dl.to_csv(index=False).encode("utf-8-sig")
-
             dim_show_dl = _round_df_numeric(dim_stats, 2)
             dim_csv = dim_show_dl.to_csv(index=False).encode("utf-8-sig")
-
             quad_item_tbl = _build_quadrant_table_from_stats(stats, label_col="Item")
             quad_dim_tbl = _build_quadrant_table_from_stats(dim_stats, label_col="Dimension")
             quad_items_csv = quad_item_tbl.to_csv(index=False).encode("utf-8-sig")
@@ -754,9 +821,6 @@ else:
 
             st.divider()
 
-            # ----------------------------
-            # ITEMS
-            # ----------------------------
             st.subheader("Cut-off (Data-centered) — Items")
             c1, c2 = st.columns(2)
             with c1:
@@ -766,10 +830,7 @@ else:
 
             st.subheader("Statistik per item (min/max/mean) + GAP(P-I) + Kuadran")
             stats_show = _round_df_numeric(stats, 2)
-            st.dataframe(
-                stats_show.sort_values("Gap_mean(P-I)", ascending=True),
-                use_container_width=True,
-            )
+            st.dataframe(stats_show.sort_values("Gap_mean(P-I)", ascending=True), use_container_width=True)
 
             st.subheader("Plot IPA (Data-centered) — Items")
             fig = plot_ipa_items(stats, x_cut, y_cut, show_iso_diagonal=False)
@@ -785,9 +846,6 @@ else:
 
             st.divider()
 
-            # ----------------------------
-            # DIMENSIONS
-            # ----------------------------
             st.subheader("Cut-off (Data-centered) — Dimensions")
             c1, c2 = st.columns(2)
             with c1:
@@ -797,10 +855,7 @@ else:
 
             st.subheader("Statistik per dimensi (min/max/mean) + GAP(P-I) + Kuadran")
             dim_show = _round_df_numeric(dim_stats, 2)
-            st.dataframe(
-                dim_show.sort_values("Gap_mean(P-I)", ascending=True),
-                use_container_width=True,
-            )
+            st.dataframe(dim_show.sort_values("Gap_mean(P-I)", ascending=True), use_container_width=True)
 
             st.subheader("Plot IPA (Data-centered) — Dimensions")
             fig_dim = plot_ipa_dimensions(dim_stats, dx_cut, dy_cut, show_iso_diagonal=False)

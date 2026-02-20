@@ -139,11 +139,13 @@ ITEMS = [
 
 ITEM_CODES = [code for _, code, _ in ITEMS]
 
+
 def group_by_dim(items):
-    d = {}
+    grouped = {}
     for dim, code, text_ in items:
-        d.setdefault(dim, []).append((code, text_))
-    return d
+        grouped.setdefault(dim, []).append((code, text_))
+    return grouped
+
 
 DIMS = group_by_dim(ITEMS)
 
@@ -176,6 +178,7 @@ def insert_response(respondent_code, meta, perf_dict, imp_dict):
         st.exception(e)
         st.stop()
 
+
 def load_all_responses(limit=5000):
     try:
         with engine.begin() as conn:
@@ -186,7 +189,7 @@ def load_all_responses(limit=5000):
                     ORDER BY created_at DESC
                     LIMIT :limit
                 """),
-                {"limit": limit}
+                {"limit": limit},
             ).fetchall()
     except Exception as e:
         st.error("Gagal load data dari database. Detail error:")
@@ -197,7 +200,7 @@ def load_all_responses(limit=5000):
     for r in rows:
         meta = r.meta or {}
         perf = r.performance or {}
-        imp  = r.importance or {}
+        imp = r.importance or {}
 
         rec = {
             "id": r.id,
@@ -210,7 +213,7 @@ def load_all_responses(limit=5000):
 
         for code in ITEM_CODES:
             rec[f"{code}_Performance"] = perf.get(code, np.nan)
-            rec[f"{code}_Importance"]  = imp.get(code, np.nan)
+            rec[f"{code}_Importance"] = imp.get(code, np.nan)
 
         records.append(rec)
 
@@ -226,6 +229,7 @@ def load_all_responses(limit=5000):
 
     return df
 
+
 def delete_all_responses():
     try:
         with engine.begin() as conn:
@@ -235,10 +239,11 @@ def delete_all_responses():
         st.exception(e)
         st.stop()
 
-# ✅ FIX: callback untuk tombol (agar tidak error session_state pada widget key)
+
 def _cancel_delete_all():
     st.session_state.confirm_delete_all = False
     st.session_state.delete_confirm_text = ""
+
 
 def _confirm_delete_all():
     delete_all_responses()
@@ -250,47 +255,47 @@ def _confirm_delete_all():
 # STATS + IPA
 # =========================
 def compute_stats_and_ipa(df_flat: pd.DataFrame):
+    def _series(col: str) -> pd.Series:
+        return pd.to_numeric(df_flat.get(col, pd.Series(dtype="float")), errors="coerce")
+
     rows = []
     for code in ITEM_CODES:
-        p = pd.to_numeric(df_flat.get(f"{code}_Performance"), errors="coerce")
-        i = pd.to_numeric(df_flat.get(f"{code}_Importance"), errors="coerce")
-        rows.append({
-            "Item": code,
-            "Performance_min": p.min(skipna=True),
-            "Performance_max": p.max(skipna=True),
-            "Performance_mean": p.mean(skipna=True),
-            "Importance_min": i.min(skipna=True),
-            "Importance_max": i.max(skipna=True),
-            "Importance_mean": i.mean(skipna=True),
-        })
+        p = _series(f"{code}_Performance")
+        i = _series(f"{code}_Importance")
+
+        rows.append(
+            {
+                "Item": code,
+                "Performance_min": p.min(skipna=True),
+                "Performance_max": p.max(skipna=True),
+                "Performance_mean": p.mean(skipna=True),
+                "Importance_min": i.min(skipna=True),
+                "Importance_max": i.max(skipna=True),
+                "Importance_mean": i.mean(skipna=True),
+            }
+        )
 
     stats = pd.DataFrame(rows)
 
-    # ✅ PASTIKAN TIDAK ADA KOLOM LAMA
-    if "Gap_mean(I-P)" in stats.columns:
-        stats = stats.drop(columns=["Gap_mean(I-P)"])
-
-    # ✅ GAP YANG BENAR: P - I (negatif kalau importance > performance)
     stats["Gap_mean(P-I)"] = stats["Performance_mean"] - stats["Importance_mean"]
 
-    # DATA-CENTERED cutoffs (mean of item means)
-    x_cut = stats["Performance_mean"].mean()
-    y_cut = stats["Importance_mean"].mean()
+    x_cut = float(stats["Performance_mean"].mean(skipna=True))
+    y_cut = float(stats["Importance_mean"].mean(skipna=True))
 
-    def quadrant(r):
-        x, y = r["Performance_mean"], r["Importance_mean"]
+    def quadrant(x: float, y: float) -> str:
         if pd.isna(x) or pd.isna(y):
             return "NA"
         if y >= y_cut and x < x_cut:
             return "I - Concentrate Here"
-        elif y >= y_cut and x >= x_cut:
+        if y >= y_cut and x >= x_cut:
             return "II - Keep Up the Good Work"
-        elif y < y_cut and x < x_cut:
+        if y < y_cut and x < x_cut:
             return "III - Low Priority"
-        else:
-            return "IV - Possible Overkill"
+        return "IV - Possible Overkill"
 
-    stats["Quadrant"] = stats.apply(quadrant, axis=1)
+    stats["Quadrant"] = [
+        quadrant(x, y) for x, y in zip(stats["Performance_mean"], stats["Importance_mean"])
+    ]
 
     quad_order = [
         "I - Concentrate Here",
@@ -301,6 +306,7 @@ def compute_stats_and_ipa(df_flat: pd.DataFrame):
     quad_lists = {q: stats.loc[stats["Quadrant"] == q, "Item"].tolist() for q in quad_order}
 
     return stats, x_cut, y_cut, quad_lists
+
 
 def plot_ipa(stats, x_cut, y_cut):
     fig, ax = plt.subplots(figsize=(9, 6))
@@ -351,7 +357,7 @@ if page == "Responden":
     with b:
         experience = st.selectbox(
             "Pengalaman telemedicine (opsional)",
-            ["", "< 6 bulan", "6–12 bulan", "1–2 tahun", "> 2 tahun"]
+            ["", "< 6 bulan", "6–12 bulan", "1–2 tahun", "> 2 tahun"],
         )
     with c:
         platform = st.text_input("Platform (opsional)", placeholder="misal: Good Doctor, Halodoc")
@@ -418,7 +424,7 @@ if page == "Responden":
                     respondent_code=(respondent_code.strip() if respondent_code else ""),
                     meta=meta,
                     perf_dict=st.session_state.perf,
-                    imp_dict=st.session_state.imp
+                    imp_dict=st.session_state.imp,
                 )
                 st.success("Terima kasih! Jawaban Anda telah tersimpan.")
 
@@ -461,11 +467,7 @@ else:
     if st.session_state.confirm_delete_all:
         st.warning("Konfirmasi: Anda yakin ingin menghapus SEMUA data respons?", icon="⚠️")
 
-        confirm_text = st.text_input(
-            'Ketik "DELETE" untuk konfirmasi',
-            key="delete_confirm_text",
-        )
-
+        confirm_text = st.text_input('Ketik "DELETE" untuk konfirmasi', key="delete_confirm_text")
         can_delete = (confirm_text.strip().upper() == "DELETE")
 
         c1, c2 = st.columns(2)
@@ -477,10 +479,7 @@ else:
                 on_click=_confirm_delete_all,
             )
         with c2:
-            st.button(
-                "❌ Batal",
-                on_click=_cancel_delete_all,
-            )
+            st.button("❌ Batal", on_click=_cancel_delete_all)
 
     st.divider()
 
@@ -504,10 +503,9 @@ else:
 
             st.subheader("Statistik per item (min/max/mean) + GAP(P-I) + Kuadran")
 
-            # ✅ urutkan dari gap paling negatif (kinerja jauh di bawah kepentingan) ke paling positif
             st.dataframe(
                 stats.sort_values("Gap_mean(P-I)", ascending=True),
-                use_container_width=True
+                use_container_width=True,
             )
 
             st.subheader("Plot IPA (Data-centered)")

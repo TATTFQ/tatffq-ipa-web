@@ -160,6 +160,13 @@ ITEMS = [
      "Aplikasi telemedicine menampilkan data yang saya perlukan dalam bentuk yang mudah dibaca dan/atau dimengerti"),
 ]
 
+# ===========
+# HILANGKAN CTS8 & CTS10 TANPA MENGUBAH "NOMOR" ITEM LAIN
+# (CTS10 sudah tidak ada di list Anda; CTS8 kita exclude dari survey + stats)
+# ===========
+EXCLUDED_CODES = {"CTS8", "CTS10"}
+ITEMS = [(dim, code, txt) for (dim, code, txt) in ITEMS if code not in EXCLUDED_CODES]
+
 ITEM_CODES = [code for _, code, _ in ITEMS]
 
 
@@ -191,18 +198,33 @@ DIM_CODES = {DIM_ABBR[dim]: [code for code, _ in items] for dim, items in DIMS.i
 # =========================
 # UX helpers (scroll, state)
 # =========================
-def _scroll_to_top():
-    components.html(
-        """
-        <script>
-          window.parent.document.querySelector('section.main').scrollTo(0, 0);
-        </script>
-        """,
-        height=0,
-    )
+def _request_scroll_to_top():
+    st.session_state._scroll_to_top = True
+
+
+def _run_scroll_to_top_if_requested():
+    if st.session_state.get("_scroll_to_top", False):
+        components.html(
+            """
+            <script>
+              setTimeout(function() {
+                try { window.scrollTo(0,0); } catch(e) {}
+                try { document.documentElement.scrollTop = 0; } catch(e) {}
+                try { document.body.scrollTop = 0; } catch(e) {}
+                try {
+                  const main = window.parent.document.querySelector('section.main');
+                  if (main) main.scrollTo(0,0);
+                } catch(e) {}
+              }, 50);
+            </script>
+            """,
+            height=0,
+        )
+        st.session_state._scroll_to_top = False
 
 
 def _ensure_default_radio_state():
+    # default state hanya untuk ITEM_CODES (yang sudah exclude CTS8/CTS10)
     for code in ITEM_CODES:
         st.session_state.setdefault(f"perf_{code}", 1)
         st.session_state.setdefault(f"imp_{code}", 1)
@@ -215,6 +237,18 @@ def _sync_dict_from_widget(prefix: str) -> dict:
     return out
 
 
+def _hydrate_widget_state_from_answers(prefix: str, answers: dict):
+    """
+    Paksa nilai widget mengikuti jawaban yang tersimpan, supaya saat balik step
+    jawaban tidak "hilang" di UI.
+    """
+    answers = answers or {}
+    for code in ITEM_CODES:
+        key = f"{prefix}_{code}"
+        desired = int(answers.get(code, 1))
+        st.session_state[key] = desired
+
+
 def _reset_survey_state():
     st.session_state.step = 1
     st.session_state.perf = {}
@@ -225,6 +259,7 @@ def _reset_survey_state():
     st.session_state.confirm_submit = False
     st.session_state.pending_respondent_code = ""
     st.session_state.pending_meta = {}
+    _request_scroll_to_top()
 
 
 def _request_submit_confirmation(respondent_code: str, meta: dict):
@@ -235,6 +270,7 @@ def _request_submit_confirmation(respondent_code: str, meta: dict):
 
 def _cancel_submit_confirmation():
     st.session_state.confirm_submit = False
+    _request_scroll_to_top()
 
 
 # =========================
@@ -281,8 +317,8 @@ def _confirm_and_submit():
     )
 
     st.success("Terima kasih! Jawaban Anda telah tersimpan.")
-    _scroll_to_top()
     _reset_survey_state()
+    st.rerun()
 
 
 def load_all_responses(limit=5000):
@@ -598,6 +634,10 @@ if page == "Responden":
         st.session_state.confirm_submit = False
         st.session_state.pending_respondent_code = ""
         st.session_state.pending_meta = {}
+        st.session_state._scroll_to_top = False
+
+    # jalankan scroll jika ada request dari interaksi sebelumnya
+    _run_scroll_to_top_if_requested()
 
     _ensure_default_radio_state()
 
@@ -636,6 +676,9 @@ if page == "Responden":
     st.divider()
 
     if st.session_state.step == 1:
+        # hydrate nilai UI dari dict perf (biar saat balik, jawaban tidak hilang)
+        _hydrate_widget_state_from_answers("perf", st.session_state.get("perf", {}))
+
         st.header("Tahap 1 — Performance (Tingkat Persetujuan)")
         st.info("Nilai seberapa Anda setuju bahwa kemampuan/fungsi ini tersedia dan mendukung pekerjaan Anda.")
 
@@ -656,11 +699,16 @@ if page == "Responden":
 
         if st.button("Lanjut ke Tahap 2 (Importance) ➜", type="primary"):
             st.session_state.perf = _sync_dict_from_widget("perf")
+            # hydrate importance agar kalau sudah pernah isi, tampil lagi
+            _hydrate_widget_state_from_answers("imp", st.session_state.get("imp", {}))
             st.session_state.step = 2
-            _scroll_to_top()
+            _request_scroll_to_top()
             st.rerun()
 
     else:
+        # hydrate nilai UI dari dict imp (biar saat balik/scroll, jawaban tidak hilang)
+        _hydrate_widget_state_from_answers("imp", st.session_state.get("imp", {}))
+
         st.header("Tahap 2 — Importance (Tingkat Kepentingan)")
         st.info("Nilai seberapa penting kemampuan/fungsi ini untuk mendukung tugas Anda dalam layanan kesehatan jarak jauh.")
 
@@ -684,8 +732,12 @@ if page == "Responden":
             if st.button("⬅ Kembali ke Performance"):
                 st.session_state.perf = _sync_dict_from_widget("perf")
                 st.session_state.imp = _sync_dict_from_widget("imp")
+
+                # PENTING: hydrate performance supaya UI tampil sesuai jawaban saat balik
+                _hydrate_widget_state_from_answers("perf", st.session_state.perf)
+
                 st.session_state.step = 1
-                _scroll_to_top()
+                _request_scroll_to_top()
                 st.rerun()
 
         with right:
@@ -697,7 +749,7 @@ if page == "Responden":
                     respondent_code=(respondent_code.strip() if respondent_code else ""),
                     meta=meta,
                 )
-                _scroll_to_top()
+                _request_scroll_to_top()
                 st.rerun()
 
         # Konfirmasi submit (Ya / Tidak)

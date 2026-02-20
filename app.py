@@ -161,6 +161,19 @@ ITEMS = [
 ]
 
 # =========================
+# BUILD ITEM_CODES + DIMS (WAJIB sebelum DIM_CODES)
+# =========================
+ITEM_CODES = [code for _, code, _ in ITEMS]
+
+def group_by_dim(items):
+    grouped = {}
+    for dim, code, text_ in items:
+        grouped.setdefault(dim, []).append((code, text_))
+    return grouped
+
+DIMS = group_by_dim(ITEMS)
+
+# =========================
 # DIMENSION MAPPING (9 dimensi)
 # =========================
 DIM_ABBR = {
@@ -205,7 +218,7 @@ def _run_scroll_to_top_if_requested():
 
 
 def _ensure_default_radio_state():
-    # default state hanya untuk ITEM_CODES (yang sudah exclude CTS8/CTS10)
+    # default state hanya untuk ITEM_CODES
     for code in ITEM_CODES:
         st.session_state.setdefault(f"perf_{code}", 1)
         st.session_state.setdefault(f"imp_{code}", 1)

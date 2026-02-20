@@ -220,7 +220,18 @@ def load_all_responses(limit=5000):
 
         records.append(rec)
 
-    return pd.DataFrame(records)
+    # ✅ FIX: pastikan kolom minimal selalu ada walaupun tabel kosong
+    base_cols = ["id", "created_at", "respondent_code"]
+    df = pd.DataFrame.from_records(records)
+
+    if df.empty and len(df.columns) == 0:
+        df = pd.DataFrame(columns=base_cols)
+
+    for col in base_cols:
+        if col not in df.columns:
+            df[col] = pd.Series(dtype="object")
+
+    return df
 
 # ✅ helper untuk hapus semua data (admin only)
 def delete_all_responses():
@@ -513,7 +524,13 @@ else:
 
     with tab2:
         st.subheader("Raw responses (flattened)")
-        st.dataframe(df.sort_values("created_at", ascending=False), use_container_width=True)
+
+        # ✅ FIX: jangan sort kalau kolom belum ada (misal setelah hapus semua)
+        if len(df) == 0 or "created_at" not in df.columns:
+            st.info("Belum ada data.")
+            st.dataframe(df, use_container_width=True)
+        else:
+            st.dataframe(df.sort_values("created_at", ascending=False), use_container_width=True)
 
     with tab3:
         if len(df) == 0:

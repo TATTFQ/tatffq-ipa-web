@@ -412,9 +412,6 @@ def _plot_iso_diagonal(ax, x_cut, y_cut, xlim, ylim):
     x0, x1 = xlim
     y0 = x0 + b
     y1 = x1 + b
-
-    # clip supaya tetap di dalam ylim (optional, biar rapi)
-    # kita cukup plot full; matplotlib akan memotong otomatis sesuai axis limits
     ax.plot([x0, x1], [y0, y1], linestyle="--", linewidth=1.5)
 
 
@@ -429,7 +426,6 @@ def plot_ipa_items(stats, x_cut, y_cut, show_iso_diagonal=False):
     ax.axvline(x_cut)
     ax.axhline(y_cut)
 
-    # set limits dulu supaya diagonal bisa pakai range yang sama
     x_vals = stats["Performance_mean"].dropna()
     y_vals = stats["Importance_mean"].dropna()
     if len(x_vals) and len(y_vals):
@@ -439,12 +435,16 @@ def plot_ipa_items(stats, x_cut, y_cut, show_iso_diagonal=False):
 
     if show_iso_diagonal:
         _plot_iso_diagonal(ax, x_cut, y_cut, ax.get_xlim(), ax.get_ylim())
-        ax.set_title("IPA Matrix (Data-centered) + Iso-Diagonal (Abalo et al., 2006) — Items")
+        ax.set_title("IPA Matrix (Data-centered) — Alternatif (Items)")
     else:
         ax.set_title("IPA Matrix (Data-centered) — Items")
 
     ax.set_xlabel("Performance (Mean)")
     ax.set_ylabel("Importance (Mean)")
+
+    # supaya garis slope=1 tampil sebagai 45° secara visual
+    ax.set_aspect("equal", adjustable="box")
+
     return fig
 
 
@@ -468,12 +468,16 @@ def plot_ipa_dimensions(dim_stats, x_cut, y_cut, show_iso_diagonal=False):
 
     if show_iso_diagonal:
         _plot_iso_diagonal(ax, x_cut, y_cut, ax.get_xlim(), ax.get_ylim())
-        ax.set_title("IPA Matrix (Data-centered) + Iso-Diagonal (Abalo et al., 2006) — Dimensions")
+        ax.set_title("IPA Matrix (Data-centered) — Alternatif (Dimensions)")
     else:
         ax.set_title("IPA Matrix (Data-centered) — Dimensions")
 
     ax.set_xlabel("Performance (Mean)")
     ax.set_ylabel("Importance (Mean)")
+
+    # supaya garis slope=1 tampil sebagai 45° secara visual
+    ax.set_aspect("equal", adjustable="box")
+
     return fig
 
 
@@ -665,10 +669,10 @@ else:
             fig = plot_ipa_items(stats, x_cut, y_cut, show_iso_diagonal=False)
             st.pyplot(fig)
 
-            st.subheader("Plot IPA alternatif (Abalo dkk., 2006) — Items")
+            st.subheader("Plot IPA Alternatif — Items")
             st.caption(
                 "Representasi alternatif mengombinasikan kuadran (cut-off = grand mean) dan garis diagonal 45° "
-                "(Iso-Diagonal Line; slope = 1) yang melalui titik (grand mean performance, grand mean importance)."
+                "(slope = 1) yang melalui titik (grand mean performance, grand mean importance)."
             )
             fig_alt = plot_ipa_items(stats, x_cut, y_cut, show_iso_diagonal=True)
             st.pyplot(fig_alt)
@@ -694,10 +698,10 @@ else:
             fig_dim = plot_ipa_dimensions(dim_stats, dx_cut, dy_cut, show_iso_diagonal=False)
             st.pyplot(fig_dim)
 
-            st.subheader("Plot IPA alternatif (Abalo dkk., 2006) — Dimensions")
+            st.subheader("Plot IPA Alternatif — Dimensions")
             st.caption(
                 "Representasi alternatif mengombinasikan kuadran (cut-off = grand mean) dan garis diagonal 45° "
-                "(Iso-Diagonal Line; slope = 1) yang melalui titik (grand mean performance, grand mean importance)."
+                "(slope = 1) yang melalui titik (grand mean performance, grand mean importance)."
             )
             fig_dim_alt = plot_ipa_dimensions(dim_stats, dx_cut, dy_cut, show_iso_diagonal=True)
             st.pyplot(fig_dim_alt)

@@ -1,6 +1,5 @@
 import os
 import json
-import re
 from datetime import datetime
 
 import streamlit as st
@@ -8,7 +7,8 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, text, bindparam
+from sqlalchemy.dialects.postgresql import JSONB
 
 # =========================
 # CONFIG
@@ -151,42 +151,31 @@ DIMS = group_by_dim(ITEMS)
 # =========================
 # DB helpers
 # =========================
-def _safe_json_load(x):
-    """Supabase/psycopg2 bisa mengembalikan jsonb sebagai dict atau str."""
-    if x is None:
-        return {}
-    if isinstance(x, dict):
-        return x
-    if isinstance(x, str):
-        x = x.strip()
-        if not x:
-            return {}
-        return json.loads(x)
-    try:
-        return dict(x)
-    except Exception:
-        return {}
-
 def insert_response(respondent_code, meta, perf_dict, imp_dict):
     """
-    FIX utama:
-    - pakai placeholder psycopg2: %(...)s
-    - kirim JSON string + cast ::jsonb
+    Cara paling stabil untuk Supabase Postgres:
+    - bindparam JSONB agar SQLAlchemy yang handle encoding JSON
+    - tidak perlu json.dumps dan tidak perlu CAST/::jsonb
     """
-    payload = {
-        "respondent_code": respondent_code,
-        "meta": json.dumps(meta, ensure_ascii=False),
-        "performance": json.dumps(perf_dict, ensure_ascii=False),
-        "importance": json.dumps(imp_dict, ensure_ascii=False),
-    }
     try:
+        stmt = text("""
+            INSERT INTO responses (respondent_code, meta, performance, importance)
+            VALUES (:respondent_code, :meta, :performance, :importance)
+        """).bindparams(
+            bindparam("meta", type_=JSONB),
+            bindparam("performance", type_=JSONB),
+            bindparam("importance", type_=JSONB),
+        )
+
         with engine.begin() as conn:
             conn.execute(
-                text("""
-                    INSERT INTO responses (respondent_code, meta, performance, importance)
-                    VALUES (%(respondent_code)s, %(meta)s::jsonb, %(performance)s::jsonb, %(importance)s::jsonb)
-                """),
-                payload
+                stmt,
+                {
+                    "respondent_code": respondent_code,
+                    "meta": meta or {},
+                    "performance": perf_dict or {},
+                    "importance": imp_dict or {},
+                },
             )
     except Exception as e:
         st.error("Gagal menyimpan ke database. Detail error:")
@@ -201,7 +190,7 @@ def load_all_responses(limit=5000):
                     SELECT id, created_at, respondent_code, meta, performance, importance
                     FROM responses
                     ORDER BY created_at DESC
-                    LIMIT %(limit)s
+                    LIMIT :limit
                 """),
                 {"limit": limit}
             ).fetchall()
@@ -212,16 +201,18 @@ def load_all_responses(limit=5000):
 
     records = []
     for r in rows:
-        meta = _safe_json_load(r.meta)
-        perf = _safe_json_load(r.performance)
-        imp  = _safe_json_load(r.importance)
+        meta = r.meta or {}
+        perf = r.performance or {}
+        imp  = r.importance or {}
 
         rec = {
             "id": r.id,
             "created_at": pd.to_datetime(r.created_at),
             "respondent_code": r.respondent_code,
-            **{f"meta_{k}": v for k, v in meta.items()},
         }
+
+        for k, v in meta.items():
+            rec[f"meta_{k}"] = v
 
         for code in ITEM_CODES:
             rec[f"{code}_Performance"] = perf.get(code, np.nan)
@@ -234,8 +225,8 @@ def load_all_responses(limit=5000):
 def compute_stats_and_ipa(df_flat: pd.DataFrame):
     rows = []
     for code in ITEM_CODES:
-        p = pd.to_numeric(df_flat[f"{code}_Performance"], errors="coerce")
-        i = pd.to_numeric(df_flat[f"{code}_Importance"], errors="coerce")
+        p = pd.to_numeric(df_flat.get(f"{code}_Performance"), errors="coerce")
+        i = pd.to_numeric(df_flat.get(f"{code}_Importance"), errors="coerce")
         rows.append({
             "Item": code,
             "Performance_min": p.min(skipna=True),
@@ -254,6 +245,8 @@ def compute_stats_and_ipa(df_flat: pd.DataFrame):
 
     def quadrant(r):
         x, y = r["Performance_mean"], r["Importance_mean"]
+        if pd.isna(x) or pd.isna(y):
+            return "NA"
         if y >= y_cut and x < x_cut:
             return "I - Concentrate Here"
         elif y >= y_cut and x >= x_cut:
@@ -265,11 +258,13 @@ def compute_stats_and_ipa(df_flat: pd.DataFrame):
 
     stats["Quadrant"] = stats.apply(quadrant, axis=1)
 
-    quad_lists = {
-        q: stats.loc[stats["Quadrant"] == q, "Item"].tolist()
-        for q in ["I - Concentrate Here", "II - Keep Up the Good Work",
-                  "III - Low Priority", "IV - Possible Overkill"]
-    }
+    quad_order = [
+        "I - Concentrate Here",
+        "II - Keep Up the Good Work",
+        "III - Low Priority",
+        "IV - Possible Overkill",
+    ]
+    quad_lists = {q: stats.loc[stats["Quadrant"] == q, "Item"].tolist() for q in quad_order}
 
     return stats, x_cut, y_cut, quad_lists
 
@@ -277,6 +272,8 @@ def plot_ipa(stats, x_cut, y_cut):
     fig, ax = plt.subplots(figsize=(9, 6))
     ax.scatter(stats["Performance_mean"], stats["Importance_mean"])
     for _, r in stats.iterrows():
+        if pd.isna(r["Performance_mean"]) or pd.isna(r["Importance_mean"]):
+            continue
         ax.text(r["Performance_mean"], r["Importance_mean"], r["Item"], fontsize=9)
 
     ax.axvline(x_cut)
@@ -318,7 +315,10 @@ if page == "Responden":
     with a:
         respondent_code = st.text_input("Kode responden (opsional)", placeholder="misal: GD-012 / ITB-05")
     with b:
-        experience = st.selectbox("Pengalaman telemedicine (opsional)", ["", "< 6 bulan", "6–12 bulan", "1–2 tahun", "> 2 tahun"])
+        experience = st.selectbox(
+            "Pengalaman telemedicine (opsional)",
+            ["", "< 6 bulan", "6–12 bulan", "1–2 tahun", "> 2 tahun"]
+        )
     with c:
         platform = st.text_input("Platform (opsional)", placeholder="misal: Good Doctor, Halodoc")
 
@@ -383,12 +383,14 @@ if page == "Responden":
                     st.stop()
 
                 insert_response(
-                    respondent_code=(respondent_code.strip() if respondent_code else ""),  # ✅ aman
+                    respondent_code=(respondent_code.strip() if respondent_code else ""),
                     meta=meta,
                     perf_dict=st.session_state.perf,
                     imp_dict=st.session_state.imp
                 )
                 st.success("Terima kasih! Jawaban Anda telah tersimpan.")
+
+                # reset untuk responden berikutnya
                 st.session_state.step = 1
                 st.session_state.perf = {}
                 st.session_state.imp = {}

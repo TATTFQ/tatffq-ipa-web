@@ -162,7 +162,6 @@ def _safe_json_load(x):
         if not x:
             return {}
         return json.loads(x)
-    # fallback
     try:
         return dict(x)
     except Exception:
@@ -171,26 +170,25 @@ def _safe_json_load(x):
 def insert_response(respondent_code, meta, perf_dict, imp_dict):
     """
     FIX utama:
-    - jangan kirim dict langsung ke jsonb
-    - kirim string JSON + cast ::jsonb
+    - pakai placeholder psycopg2: %(...)s
+    - kirim JSON string + cast ::jsonb
     """
-    payload = dict(
-        respondent_code=respondent_code,
-        meta=json.dumps(meta, ensure_ascii=False),
-        performance=json.dumps(perf_dict, ensure_ascii=False),
-        importance=json.dumps(imp_dict, ensure_ascii=False),
-    )
+    payload = {
+        "respondent_code": respondent_code,
+        "meta": json.dumps(meta, ensure_ascii=False),
+        "performance": json.dumps(perf_dict, ensure_ascii=False),
+        "importance": json.dumps(imp_dict, ensure_ascii=False),
+    }
     try:
         with engine.begin() as conn:
             conn.execute(
                 text("""
                     INSERT INTO responses (respondent_code, meta, performance, importance)
-                    VALUES (:respondent_code, :meta::jsonb, :performance::jsonb, :importance::jsonb)
+                    VALUES (%(respondent_code)s, %(meta)s::jsonb, %(performance)s::jsonb, %(importance)s::jsonb)
                 """),
                 payload
             )
     except Exception as e:
-        # supaya tidak "redacted" dan Anda bisa lihat akar masalahnya
         st.error("Gagal menyimpan ke database. Detail error:")
         st.exception(e)
         st.stop()
@@ -203,9 +201,9 @@ def load_all_responses(limit=5000):
                     SELECT id, created_at, respondent_code, meta, performance, importance
                     FROM responses
                     ORDER BY created_at DESC
-                    LIMIT :limit
+                    LIMIT %(limit)s
                 """),
-                dict(limit=limit)
+                {"limit": limit}
             ).fetchall()
     except Exception as e:
         st.error("Gagal load data dari database. Detail error:")
@@ -385,7 +383,7 @@ if page == "Responden":
                     st.stop()
 
                 insert_response(
-                    respondent_code=respondent_code.strip() if respondent_code else None,
+                    respondent_code=(respondent_code.strip() if respondent_code else ""),  # ✅ aman
                     meta=meta,
                     perf_dict=st.session_state.perf,
                     imp_dict=st.session_state.imp

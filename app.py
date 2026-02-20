@@ -22,7 +22,14 @@ if not DB_URL:
     st.error("DB belum dikonfigurasi. Set SUPABASE_DB_URL di Streamlit Secrets / env var.")
     st.stop()
 
-engine = create_engine(DB_URL, pool_pre_ping=True)
+# ✅ Supabase Pooler + Streamlit Cloud: biasanya lebih stabil pakai pool_pre_ping + pool_recycle
+engine = create_engine(
+    DB_URL,
+    pool_pre_ping=True,
+    pool_recycle=1800,     # recycle koneksi 30 menit
+    pool_size=5,
+    max_overflow=5,
+)
 
 LIKERT_PERF = {
     1: "Sangat Tidak Setuju",
@@ -144,48 +151,84 @@ DIMS = group_by_dim(ITEMS)
 # =========================
 # DB helpers
 # =========================
+def _safe_json_load(x):
+    """Supabase/psycopg2 bisa mengembalikan jsonb sebagai dict atau str."""
+    if x is None:
+        return {}
+    if isinstance(x, dict):
+        return x
+    if isinstance(x, str):
+        x = x.strip()
+        if not x:
+            return {}
+        return json.loads(x)
+    # fallback
+    try:
+        return dict(x)
+    except Exception:
+        return {}
+
 def insert_response(respondent_code, meta, perf_dict, imp_dict):
-    with engine.begin() as conn:
-        conn.execute(
-            text("""
-                insert into responses (respondent_code, meta, performance, importance)
-                values (:respondent_code, :meta::jsonb, :performance::jsonb, :importance::jsonb)
-            """),
-            dict(
-                respondent_code=respondent_code,
-                meta=json.dumps(meta, ensure_ascii=False),
-                performance=json.dumps(perf_dict, ensure_ascii=False),
-                importance=json.dumps(imp_dict, ensure_ascii=False),
+    """
+    FIX utama:
+    - jangan kirim dict langsung ke jsonb
+    - kirim string JSON + cast ::jsonb
+    """
+    payload = dict(
+        respondent_code=respondent_code,
+        meta=json.dumps(meta, ensure_ascii=False),
+        performance=json.dumps(perf_dict, ensure_ascii=False),
+        importance=json.dumps(imp_dict, ensure_ascii=False),
+    )
+    try:
+        with engine.begin() as conn:
+            conn.execute(
+                text("""
+                    INSERT INTO responses (respondent_code, meta, performance, importance)
+                    VALUES (:respondent_code, :meta::jsonb, :performance::jsonb, :importance::jsonb)
+                """),
+                payload
             )
-        )
+    except Exception as e:
+        # supaya tidak "redacted" dan Anda bisa lihat akar masalahnya
+        st.error("Gagal menyimpan ke database. Detail error:")
+        st.exception(e)
+        st.stop()
 
 def load_all_responses(limit=5000):
-    with engine.begin() as conn:
-        rows = conn.execute(
-            text("""
-                select id, created_at, respondent_code, meta, performance, importance
-                from responses
-                order by created_at desc
-                limit :limit
-            """),
-            dict(limit=limit)
-        ).fetchall()
+    try:
+        with engine.begin() as conn:
+            rows = conn.execute(
+                text("""
+                    SELECT id, created_at, respondent_code, meta, performance, importance
+                    FROM responses
+                    ORDER BY created_at DESC
+                    LIMIT :limit
+                """),
+                dict(limit=limit)
+            ).fetchall()
+    except Exception as e:
+        st.error("Gagal load data dari database. Detail error:")
+        st.exception(e)
+        st.stop()
 
     records = []
     for r in rows:
-        meta = r.meta if isinstance(r.meta, dict) else json.loads(r.meta) if r.meta else {}
-        perf = r.performance if isinstance(r.performance, dict) else json.loads(r.performance)
-        imp  = r.importance if isinstance(r.importance, dict) else json.loads(r.importance)
+        meta = _safe_json_load(r.meta)
+        perf = _safe_json_load(r.performance)
+        imp  = _safe_json_load(r.importance)
+
         rec = {
             "id": r.id,
             "created_at": pd.to_datetime(r.created_at),
             "respondent_code": r.respondent_code,
             **{f"meta_{k}": v for k, v in meta.items()},
         }
-        # flatten perf/imp
+
         for code in ITEM_CODES:
             rec[f"{code}_Performance"] = perf.get(code, np.nan)
             rec[f"{code}_Importance"]  = imp.get(code, np.nan)
+
         records.append(rec)
 
     return pd.DataFrame(records)
@@ -335,7 +378,6 @@ if page == "Responden":
 
         with right:
             if st.button("✅ Submit", type="primary"):
-                # Validasi minimal: pastikan semua item ada
                 missing_p = [k for k in ITEM_CODES if k not in st.session_state.perf]
                 missing_i = [k for k in ITEM_CODES if k not in st.session_state.imp]
                 if missing_p or missing_i:
@@ -349,7 +391,6 @@ if page == "Responden":
                     imp_dict=st.session_state.imp
                 )
                 st.success("Terima kasih! Jawaban Anda telah tersimpan.")
-                # reset untuk responden berikutnya
                 st.session_state.step = 1
                 st.session_state.perf = {}
                 st.session_state.imp = {}

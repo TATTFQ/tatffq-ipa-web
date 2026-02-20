@@ -672,7 +672,11 @@ if page == "Responden":
     st.divider()
 
     if st.session_state.step == 1:
-        # NOTE: JANGAN hydrate di render normal (ini yang bikin pilihan balik ke 1)
+        # =========================
+        # FIX: agar saat balik dari step 2, jawaban performance TIDAK hilang
+        # =========================
+        if st.session_state.get("perf"):
+            _hydrate_widget_state_from_answers("perf", st.session_state["perf"], force=True)
 
         st.header("Tahap 1 — Performance (Tingkat Persetujuan)")
         st.info("Nilai seberapa Anda setuju bahwa kemampuan/fungsi ini tersedia dan mendukung pekerjaan Anda.")
@@ -701,7 +705,11 @@ if page == "Responden":
             st.rerun()
 
     else:
-        # NOTE: JANGAN hydrate di render normal (ini yang bikin pilihan balik ke 1)
+        # =========================
+        # FIX: agar saat rerun / maju-mundur, jawaban importance tetap tampil
+        # =========================
+        if st.session_state.get("imp"):
+            _hydrate_widget_state_from_answers("imp", st.session_state["imp"], force=True)
 
         st.header("Tahap 2 — Importance (Tingkat Kepentingan)")
         st.info("Nilai seberapa penting kemampuan/fungsi ini untuk mendukung tugas Anda dalam layanan kesehatan jarak jauh.")
@@ -727,7 +735,7 @@ if page == "Responden":
                 st.session_state.perf = _sync_dict_from_widget("perf")
                 st.session_state.imp = _sync_dict_from_widget("imp")
 
-                # HANYA saat balik step: paksa UI mengikuti jawaban yang sudah diisi
+                # saat balik step: paksa UI performance mengikuti jawaban yang sudah diisi
                 _hydrate_widget_state_from_answers("perf", st.session_state.perf, force=True)
 
                 st.session_state.step = 1

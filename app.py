@@ -245,6 +245,15 @@ def _hydrate_widget_state_from_answers(prefix: str, answers: dict, force: bool =
             st.session_state[key] = desired
 
 
+# =========================
+# FIX: hydrate hanya sekali saat "masuk step"
+# =========================
+def _enter_step(step: int):
+    """Panggil saat baru masuk ke step tertentu (agar hydrate hanya 1x)."""
+    st.session_state.step = step
+    st.session_state._enter_step = True
+
+
 def _reset_survey_state():
     st.session_state.step = 1
     st.session_state.perf = {}
@@ -255,6 +264,7 @@ def _reset_survey_state():
     st.session_state.confirm_submit = False
     st.session_state.pending_respondent_code = ""
     st.session_state.pending_meta = {}
+    st.session_state._enter_step = True  # FIX
     _request_scroll_to_top()
 
 
@@ -631,6 +641,7 @@ if page == "Responden":
         st.session_state.pending_respondent_code = ""
         st.session_state.pending_meta = {}
         st.session_state._scroll_to_top = False
+        st.session_state._enter_step = True  # FIX
 
     # jalankan scroll jika ada request dari interaksi sebelumnya
     _run_scroll_to_top_if_requested()
@@ -672,11 +683,11 @@ if page == "Responden":
     st.divider()
 
     if st.session_state.step == 1:
-        # =========================
-        # FIX: agar saat balik dari step 2, jawaban performance TIDAK hilang
-        # =========================
-        if st.session_state.get("perf"):
-            _hydrate_widget_state_from_answers("perf", st.session_state["perf"], force=True)
+        # FIX: hydrate hanya 1x saat masuk step 1
+        if st.session_state.get("_enter_step", False):
+            if st.session_state.get("perf"):
+                _hydrate_widget_state_from_answers("perf", st.session_state["perf"], force=True)
+            st.session_state._enter_step = False
 
         st.header("Tahap 1 — Performance (Tingkat Persetujuan)")
         st.info("Nilai seberapa Anda setuju bahwa kemampuan/fungsi ini tersedia dan mendukung pekerjaan Anda.")
@@ -698,18 +709,18 @@ if page == "Responden":
 
         if st.button("Lanjut ke Tahap 2 (Importance) ➜", type="primary"):
             st.session_state.perf = _sync_dict_from_widget("perf")
-            # HANYA saat pindah step: kalau sudah pernah isi importance, tampil lagi
+            # kalau sudah pernah isi importance, tampil lagi
             _hydrate_widget_state_from_answers("imp", st.session_state.get("imp", {}), force=True)
-            st.session_state.step = 2
+            _enter_step(2)  # FIX
             _request_scroll_to_top()
             st.rerun()
 
     else:
-        # =========================
-        # FIX: agar saat rerun / maju-mundur, jawaban importance tetap tampil
-        # =========================
-        if st.session_state.get("imp"):
-            _hydrate_widget_state_from_answers("imp", st.session_state["imp"], force=True)
+        # FIX: hydrate hanya 1x saat masuk step 2
+        if st.session_state.get("_enter_step", False):
+            if st.session_state.get("imp"):
+                _hydrate_widget_state_from_answers("imp", st.session_state["imp"], force=True)
+            st.session_state._enter_step = False
 
         st.header("Tahap 2 — Importance (Tingkat Kepentingan)")
         st.info("Nilai seberapa penting kemampuan/fungsi ini untuk mendukung tugas Anda dalam layanan kesehatan jarak jauh.")
@@ -735,10 +746,10 @@ if page == "Responden":
                 st.session_state.perf = _sync_dict_from_widget("perf")
                 st.session_state.imp = _sync_dict_from_widget("imp")
 
-                # saat balik step: paksa UI performance mengikuti jawaban yang sudah diisi
+                # paksa UI performance mengikuti jawaban yang sudah diisi
                 _hydrate_widget_state_from_answers("perf", st.session_state.perf, force=True)
 
-                st.session_state.step = 1
+                _enter_step(1)  # FIX
                 _request_scroll_to_top()
                 st.rerun()
 

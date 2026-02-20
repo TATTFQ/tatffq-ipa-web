@@ -222,6 +222,24 @@ def load_all_responses(limit=5000):
 
     return pd.DataFrame(records)
 
+# ✅ NEW: helper untuk hapus semua data (admin only)
+def delete_all_responses():
+    """
+    Menghapus SEMUA data pada tabel responses.
+    - TRUNCATE + RESTART IDENTITY akan mengosongkan tabel dan mereset sequence id.
+    - Jika ada foreign key dari tabel lain ke responses dan TRUNCATE error,
+      ganti ke: DELETE FROM responses
+    """
+    try:
+        with engine.begin() as conn:
+            conn.execute(text("TRUNCATE TABLE responses RESTART IDENTITY"))
+            # alternatif:
+            # conn.execute(text("DELETE FROM responses"))
+    except Exception as e:
+        st.error("Gagal menghapus data. Detail error:")
+        st.exception(e)
+        st.stop()
+
 def compute_stats_and_ipa(df_flat: pd.DataFrame):
     rows = []
     for code in ITEM_CODES:
@@ -406,6 +424,48 @@ else:
         st.warning("ADMIN_PASSWORD belum diset di Secrets/env. Set dulu agar dashboard aman.")
     if pwd != ADMIN_PASSWORD:
         st.stop()
+
+    # =========================
+    # ✅ NEW: Danger Zone (hapus semua data + konfirmasi)
+    # =========================
+    st.divider()
+    st.subheader("Danger Zone")
+    st.caption("Aksi ini akan menghapus SEMUA respons di tabel responses dan tidak bisa dibatalkan.")
+
+    if "confirm_delete_all" not in st.session_state:
+        st.session_state.confirm_delete_all = False
+
+    colA, colB = st.columns([1, 3])
+    with colA:
+        if st.button("🗑️ Hapus semua data", type="secondary"):
+            st.session_state.confirm_delete_all = True
+
+    if st.session_state.confirm_delete_all:
+        st.warning("Konfirmasi: Anda yakin ingin menghapus SEMUA data respons?", icon="⚠️")
+
+        # Opsional: minta ketik DELETE agar tidak kepencet
+        confirm_text = st.text_input('Ketik "DELETE" untuk konfirmasi', key="delete_confirm_text")
+
+        c1, c2 = st.columns(2)
+        with c1:
+            if st.button(
+                "✅ Ya, hapus sekarang",
+                type="primary",
+                disabled=(confirm_text.strip().upper() != "DELETE")
+            ):
+                delete_all_responses()
+                st.success("Semua data berhasil dihapus.")
+                st.session_state.confirm_delete_all = False
+                st.session_state.delete_confirm_text = ""
+                st.rerun()
+
+        with c2:
+            if st.button("❌ Batal"):
+                st.session_state.confirm_delete_all = False
+                st.session_state.delete_confirm_text = ""
+                st.rerun()
+
+    st.divider()
 
     df = load_all_responses()
     st.success(f"Total respon tersimpan: {len(df)}")

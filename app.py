@@ -150,6 +150,24 @@ def group_by_dim(items):
 DIMS = group_by_dim(ITEMS)
 
 # =========================
+# DIMENSION MAPPING (9 dimensi)
+# =========================
+DIM_ABBR = {
+    "Data & Services Integration": "DSI",
+    "Clinical Decision Support": "CDS",
+    "Clinical Communication": "CCM",
+    "Clinical Task Support": "CTS",
+    "Scheduling & Notification": "SCN",
+    "System Reliability": "SRB",
+    "Ease of Use & Support": "EUS",
+    "Privacy & Security": "PSC",
+    "Data Quality & Accessibility": "DQA",
+}
+
+DIM_CODES = {DIM_ABBR[dim]: [code for code, _ in items] for dim, items in DIMS.items()}
+
+
+# =========================
 # DB helpers
 # =========================
 def insert_response(respondent_code, meta, perf_dict, imp_dict):
@@ -251,6 +269,7 @@ def _confirm_delete_all():
     st.session_state.delete_confirm_text = ""
     st.session_state.delete_all_done = True
 
+
 # =========================
 # STATS + IPA
 # =========================
@@ -276,7 +295,6 @@ def compute_stats_and_ipa(df_flat: pd.DataFrame):
         )
 
     stats = pd.DataFrame(rows)
-
     stats["Gap_mean(P-I)"] = stats["Performance_mean"] - stats["Importance_mean"]
 
     x_cut = float(stats["Performance_mean"].mean(skipna=True))
@@ -308,6 +326,89 @@ def compute_stats_and_ipa(df_flat: pd.DataFrame):
     return stats, x_cut, y_cut, quad_lists
 
 
+def compute_dimension_stats_and_ipa(df_flat: pd.DataFrame):
+    """
+    Skor dimensi per responden = rata-rata item dalam dimensi tersebut.
+    Lalu dihitung min/max/mean antar responden, gap mean, dan kuadran (data-centered khusus dimensi).
+    """
+    if df_flat is None or df_flat.empty:
+        cols = [
+            "Dimension", "Dimension_name", "n_items",
+            "Performance_min", "Performance_max", "Performance_mean",
+            "Importance_min", "Importance_max", "Importance_mean",
+            "Gap_mean(P-I)", "Quadrant",
+        ]
+        empty_stats = pd.DataFrame(columns=cols)
+        return empty_stats, np.nan, np.nan, {q: [] for q in [
+            "I - Concentrate Here",
+            "II - Keep Up the Good Work",
+            "III - Low Priority",
+            "IV - Possible Overkill",
+        ]}
+
+    rows = []
+    for dim_full, abbr in DIM_ABBR.items():
+        codes = DIM_CODES.get(abbr, [])
+        perf_cols = [f"{c}_Performance" for c in codes]
+        imp_cols = [f"{c}_Importance" for c in codes]
+
+        perf_dim = (
+            df_flat.reindex(columns=perf_cols)
+            .apply(pd.to_numeric, errors="coerce")
+            .mean(axis=1, skipna=True)
+        )
+        imp_dim = (
+            df_flat.reindex(columns=imp_cols)
+            .apply(pd.to_numeric, errors="coerce")
+            .mean(axis=1, skipna=True)
+        )
+
+        rows.append(
+            {
+                "Dimension": abbr,
+                "Dimension_name": dim_full,
+                "n_items": len(codes),
+                "Performance_min": perf_dim.min(skipna=True),
+                "Performance_max": perf_dim.max(skipna=True),
+                "Performance_mean": perf_dim.mean(skipna=True),
+                "Importance_min": imp_dim.min(skipna=True),
+                "Importance_max": imp_dim.max(skipna=True),
+                "Importance_mean": imp_dim.mean(skipna=True),
+            }
+        )
+
+    dim_stats = pd.DataFrame(rows)
+    dim_stats["Gap_mean(P-I)"] = dim_stats["Performance_mean"] - dim_stats["Importance_mean"]
+
+    x_cut = float(dim_stats["Performance_mean"].mean(skipna=True))
+    y_cut = float(dim_stats["Importance_mean"].mean(skipna=True))
+
+    def quadrant(x: float, y: float) -> str:
+        if pd.isna(x) or pd.isna(y):
+            return "NA"
+        if y >= y_cut and x < x_cut:
+            return "I - Concentrate Here"
+        if y >= y_cut and x >= x_cut:
+            return "II - Keep Up the Good Work"
+        if y < y_cut and x < x_cut:
+            return "III - Low Priority"
+        return "IV - Possible Overkill"
+
+    dim_stats["Quadrant"] = [
+        quadrant(x, y) for x, y in zip(dim_stats["Performance_mean"], dim_stats["Importance_mean"])
+    ]
+
+    quad_order = [
+        "I - Concentrate Here",
+        "II - Keep Up the Good Work",
+        "III - Low Priority",
+        "IV - Possible Overkill",
+    ]
+    quad_lists = {q: dim_stats.loc[dim_stats["Quadrant"] == q, "Dimension"].tolist() for q in quad_order}
+
+    return dim_stats, x_cut, y_cut, quad_lists
+
+
 def plot_ipa(stats, x_cut, y_cut):
     fig, ax = plt.subplots(figsize=(9, 6))
     ax.scatter(stats["Performance_mean"], stats["Importance_mean"])
@@ -320,8 +421,25 @@ def plot_ipa(stats, x_cut, y_cut):
     ax.axhline(y_cut)
     ax.set_xlabel("Performance (Mean)")
     ax.set_ylabel("Importance (Mean)")
-    ax.set_title("IPA Matrix (Data-centered)")
+    ax.set_title("IPA Matrix (Data-centered) — Items")
     return fig
+
+
+def plot_ipa_dimensions(dim_stats, x_cut, y_cut):
+    fig, ax = plt.subplots(figsize=(9, 6))
+    ax.scatter(dim_stats["Performance_mean"], dim_stats["Importance_mean"])
+    for _, r in dim_stats.iterrows():
+        if pd.isna(r["Performance_mean"]) or pd.isna(r["Importance_mean"]):
+            continue
+        ax.text(r["Performance_mean"], r["Importance_mean"], r["Dimension"], fontsize=10)
+
+    ax.axvline(x_cut)
+    ax.axhline(y_cut)
+    ax.set_xlabel("Performance (Mean)")
+    ax.set_ylabel("Importance (Mean)")
+    ax.set_title("IPA Matrix (Data-centered) — Dimensions")
+    return fig
+
 
 # =========================
 # SIMPLE ROUTING: Respondent vs Admin
@@ -494,7 +612,7 @@ else:
         else:
             stats, x_cut, y_cut, quad_lists = compute_stats_and_ipa(df)
 
-            st.subheader("Cut-off (Data-centered)")
+            st.subheader("Cut-off (Data-centered) — Items")
             c1, c2 = st.columns(2)
             with c1:
                 st.metric("Performance cut-off (mean global)", f"{x_cut:.3f}")
@@ -502,15 +620,35 @@ else:
                 st.metric("Importance cut-off (mean global)", f"{y_cut:.3f}")
 
             st.subheader("Statistik per item (min/max/mean) + GAP(P-I) + Kuadran")
-
             st.dataframe(
                 stats.sort_values("Gap_mean(P-I)", ascending=True),
                 use_container_width=True,
             )
 
-            st.subheader("Plot IPA (Data-centered)")
+            st.subheader("Plot IPA (Data-centered) — Items")
             fig = plot_ipa(stats, x_cut, y_cut)
             st.pyplot(fig)
+
+            st.divider()
+
+            dim_stats, dx_cut, dy_cut, dim_quad_lists = compute_dimension_stats_and_ipa(df)
+
+            st.subheader("Cut-off (Data-centered) — Dimensions")
+            c1, c2 = st.columns(2)
+            with c1:
+                st.metric("Performance cut-off (mean dim)", f"{dx_cut:.3f}")
+            with c2:
+                st.metric("Importance cut-off (mean dim)", f"{dy_cut:.3f}")
+
+            st.subheader("Statistik per dimensi (min/max/mean) + GAP(P-I) + Kuadran")
+            st.dataframe(
+                dim_stats.sort_values("Gap_mean(P-I)", ascending=True),
+                use_container_width=True,
+            )
+
+            st.subheader("Plot IPA (Data-centered) — Dimensions")
+            fig_dim = plot_ipa_dimensions(dim_stats, dx_cut, dy_cut)
+            st.pyplot(fig_dim)
 
     with tab2:
         st.subheader("Raw responses (flattened)")
@@ -529,3 +667,11 @@ else:
             for q, items in quad_lists.items():
                 st.markdown(f"### {q}")
                 st.write(items if items else ["(kosong)"])
+
+            st.divider()
+
+            dim_stats, dx_cut, dy_cut, dim_quad_lists = compute_dimension_stats_and_ipa(df)
+            st.subheader("Daftar dimensi per kuadran")
+            for q, dims in dim_quad_lists.items():
+                st.markdown(f"### {q}")
+                st.write(dims if dims else ["(kosong)"])

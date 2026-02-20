@@ -222,7 +222,7 @@ def load_all_responses(limit=5000):
 
     return pd.DataFrame(records)
 
-# ✅ NEW: helper untuk hapus semua data (admin only)
+# ✅ helper untuk hapus semua data (admin only)
 def delete_all_responses():
     """
     Menghapus SEMUA data pada tabel responses.
@@ -239,6 +239,17 @@ def delete_all_responses():
         st.error("Gagal menghapus data. Detail error:")
         st.exception(e)
         st.stop()
+
+# ✅ FIX: callback untuk tombol (agar tidak error session_state pada widget key)
+def _cancel_delete_all():
+    st.session_state.confirm_delete_all = False
+    st.session_state.delete_confirm_text = ""
+
+def _confirm_delete_all():
+    delete_all_responses()
+    st.session_state.confirm_delete_all = False
+    st.session_state.delete_confirm_text = ""
+    st.session_state.delete_all_done = True
 
 def compute_stats_and_ipa(df_flat: pd.DataFrame):
     rows = []
@@ -426,7 +437,7 @@ else:
         st.stop()
 
     # =========================
-    # ✅ NEW: Danger Zone (hapus semua data + konfirmasi)
+    # ✅ Danger Zone (hapus semua data + konfirmasi) — FIXED
     # =========================
     st.divider()
     st.subheader("Hapus Semua Data")
@@ -434,6 +445,14 @@ else:
 
     if "confirm_delete_all" not in st.session_state:
         st.session_state.confirm_delete_all = False
+    if "delete_confirm_text" not in st.session_state:
+        st.session_state.delete_confirm_text = ""
+    if "delete_all_done" not in st.session_state:
+        st.session_state.delete_all_done = False
+
+    if st.session_state.delete_all_done:
+        st.success("Semua data berhasil dihapus.")
+        st.session_state.delete_all_done = False
 
     colA, colB = st.columns([1, 3])
     with colA:
@@ -443,27 +462,27 @@ else:
     if st.session_state.confirm_delete_all:
         st.warning("Konfirmasi: Anda yakin ingin menghapus SEMUA data respons?", icon="⚠️")
 
-        # Opsional: minta ketik DELETE agar tidak kepencet
-        confirm_text = st.text_input('Ketik "DELETE" untuk konfirmasi', key="delete_confirm_text")
+        confirm_text = st.text_input(
+            'Ketik "DELETE" untuk konfirmasi',
+            key="delete_confirm_text",
+        )
+
+        can_delete = (confirm_text.strip().upper() == "DELETE")
 
         c1, c2 = st.columns(2)
         with c1:
-            if st.button(
+            st.button(
                 "✅ Ya, hapus sekarang",
                 type="primary",
-                disabled=(confirm_text.strip().upper() != "DELETE")
-            ):
-                delete_all_responses()
-                st.success("Semua data berhasil dihapus.")
-                st.session_state.confirm_delete_all = False
-                st.session_state.delete_confirm_text = ""
-                st.rerun()
+                disabled=not can_delete,
+                on_click=_confirm_delete_all,
+            )
 
         with c2:
-            if st.button("❌ Batal"):
-                st.session_state.confirm_delete_all = False
-                st.session_state.delete_confirm_text = ""
-                st.rerun()
+            st.button(
+                "❌ Batal",
+                on_click=_cancel_delete_all,
+            )
 
     st.divider()
 

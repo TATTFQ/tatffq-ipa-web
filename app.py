@@ -121,13 +121,13 @@ ITEMS = [
      "Aplikasi telemedicine menyediakan data yang berkualitas (akurat, mutakhir, dan/atau memiliki tingkat detail yang sesuai) untuk tugas saya memberikan layanan kesehatan jarak jauh kepada pasien"),
     ("Data Quality & Accessibility", "DQA2",
      "Aplikasi telemedicine menyediakan error handling untuk menjaga keakuratan input data"),
-    ("Data Quality & Accessibility", "DQA4",
+    ("Data Quality & Accessibility", "DQA3",
      "Aplikasi telemedicine memungkinkan saya untuk mengakses data yang saya butuhkan dengan mudah"),
-    ("Data Quality & Accessibility", "DQA5",
+    ("Data Quality & Accessibility", "DQA4",
      "Aplikasi telemedicine memungkinkan saya untuk menemukan data tertentu dengan mudah"),
-    ("Data Quality & Accessibility", "DQA6",
+    ("Data Quality & Accessibility", "DQA5",
      "Aplikasi telemedicine menyajikan data dengan makna yang jelas dan/atau mudah untuk diketahui"),
-    ("Data Quality & Accessibility", "DQA7",
+    ("Data Quality & Accessibility", "DQA6",
      "Aplikasi telemedicine menampilkan data yang saya perlukan dalam bentuk yang mudah dibaca dan/atau dimengerti"),
 ]
 

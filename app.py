@@ -311,15 +311,15 @@ def insert_response(respondent_code, meta, perf_dict, imp_dict):
 
 def _confirm_and_submit():
     # ambil jawaban terbaru dari widget
-    st.session_state.perf = _sync_dict_from_widget("perf")
+    # PERF JANGAN di-sync di step 2 karena widget perf tidak dirender (bisa balik jadi 1)
     st.session_state.imp = _sync_dict_from_widget("imp")
 
     insert_response(
         respondent_code=(st.session_state.pending_respondent_code.strip()
                          if st.session_state.pending_respondent_code else ""),
         meta=st.session_state.pending_meta,
-        perf_dict=st.session_state.perf,
-        imp_dict=st.session_state.imp,
+        perf_dict=st.session_state.get("perf", {}),
+        imp_dict=st.session_state.get("imp", {}),
     )
 
     st.success("Terima kasih! Jawaban Anda telah tersimpan.")
@@ -743,11 +743,11 @@ if page == "Responden":
         left, right = st.columns(2)
         with left:
             if st.button("⬅ Kembali ke Performance"):
-                st.session_state.perf = _sync_dict_from_widget("perf")
+                # JANGAN sync perf di step 2 (widget perf tidak dirender -> bisa balik jadi 1)
                 st.session_state.imp = _sync_dict_from_widget("imp")
 
-                # paksa UI performance mengikuti jawaban yang sudah diisi
-                _hydrate_widget_state_from_answers("perf", st.session_state.perf, force=True)
+                # paksa UI performance mengikuti jawaban yang sudah tersimpan
+                _hydrate_widget_state_from_answers("perf", st.session_state.get("perf", {}), force=True)
 
                 _enter_step(1)  # FIX
                 _request_scroll_to_top()
@@ -756,8 +756,9 @@ if page == "Responden":
         with right:
             submit_disabled = st.session_state.get("confirm_submit", False)
             if st.button("✅ Submit", type="primary", disabled=submit_disabled):
-                st.session_state.perf = _sync_dict_from_widget("perf")
+                # JANGAN sync perf di step 2
                 st.session_state.imp = _sync_dict_from_widget("imp")
+
                 _request_submit_confirmation(
                     respondent_code=(respondent_code.strip() if respondent_code else ""),
                     meta=meta,

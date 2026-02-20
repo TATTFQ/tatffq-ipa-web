@@ -429,7 +429,7 @@ else:
     # ✅ NEW: Danger Zone (hapus semua data + konfirmasi)
     # =========================
     st.divider()
-    st.subheader("Danger Zone")
+    st.subheader("Hapus Semua Data")
     st.caption("Aksi ini akan menghapus SEMUA respons di tabel responses dan tidak bisa dibatalkan.")
 
     if "confirm_delete_all" not in st.session_state:

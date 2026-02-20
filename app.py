@@ -163,9 +163,7 @@ DIM_ABBR = {
     "Privacy & Security": "PSC",
     "Data Quality & Accessibility": "DQA",
 }
-
 DIM_CODES = {DIM_ABBR[dim]: [code for code, _ in items] for dim, items in DIMS.items()}
-
 
 # =========================
 # DB helpers
@@ -281,7 +279,6 @@ def compute_stats_and_ipa(df_flat: pd.DataFrame):
     for code in ITEM_CODES:
         p = _series(f"{code}_Performance")
         i = _series(f"{code}_Importance")
-
         rows.append(
             {
                 "Item": code,
@@ -311,9 +308,7 @@ def compute_stats_and_ipa(df_flat: pd.DataFrame):
             return "III - Low Priority"
         return "IV - Possible Overkill"
 
-    stats["Quadrant"] = [
-        quadrant(x, y) for x, y in zip(stats["Performance_mean"], stats["Importance_mean"])
-    ]
+    stats["Quadrant"] = [quadrant(x, y) for x, y in zip(stats["Performance_mean"], stats["Importance_mean"])]
 
     quad_order = [
         "I - Concentrate Here",
@@ -394,9 +389,7 @@ def compute_dimension_stats_and_ipa(df_flat: pd.DataFrame):
             return "III - Low Priority"
         return "IV - Possible Overkill"
 
-    dim_stats["Quadrant"] = [
-        quadrant(x, y) for x, y in zip(dim_stats["Performance_mean"], dim_stats["Importance_mean"])
-    ]
+    dim_stats["Quadrant"] = [quadrant(x, y) for x, y in zip(dim_stats["Performance_mean"], dim_stats["Importance_mean"])]
 
     quad_order = [
         "I - Concentrate Here",
@@ -409,7 +402,23 @@ def compute_dimension_stats_and_ipa(df_flat: pd.DataFrame):
     return dim_stats, x_cut, y_cut, quad_lists
 
 
-def plot_ipa(stats, x_cut, y_cut):
+def _plot_iso_diagonal(ax, x_cut, y_cut, xlim, ylim):
+    """
+    Garis diagonal slope=1 yang melewati titik (x_cut, y_cut):
+      y - y_cut = 1*(x - x_cut)  =>  y = x + (y_cut - x_cut)
+    Digambar pada rentang yang sesuai limit axis.
+    """
+    b = y_cut - x_cut  # intercept untuk y = x + b
+    x0, x1 = xlim
+    y0 = x0 + b
+    y1 = x1 + b
+
+    # clip supaya tetap di dalam ylim (optional, biar rapi)
+    # kita cukup plot full; matplotlib akan memotong otomatis sesuai axis limits
+    ax.plot([x0, x1], [y0, y1], linestyle="--", linewidth=1.5)
+
+
+def plot_ipa_items(stats, x_cut, y_cut, show_iso_diagonal=False):
     fig, ax = plt.subplots(figsize=(9, 6))
     ax.scatter(stats["Performance_mean"], stats["Importance_mean"])
     for _, r in stats.iterrows():
@@ -419,13 +428,27 @@ def plot_ipa(stats, x_cut, y_cut):
 
     ax.axvline(x_cut)
     ax.axhline(y_cut)
+
+    # set limits dulu supaya diagonal bisa pakai range yang sama
+    x_vals = stats["Performance_mean"].dropna()
+    y_vals = stats["Importance_mean"].dropna()
+    if len(x_vals) and len(y_vals):
+        pad = 0.2
+        ax.set_xlim(float(x_vals.min()) - pad, float(x_vals.max()) + pad)
+        ax.set_ylim(float(y_vals.min()) - pad, float(y_vals.max()) + pad)
+
+    if show_iso_diagonal:
+        _plot_iso_diagonal(ax, x_cut, y_cut, ax.get_xlim(), ax.get_ylim())
+        ax.set_title("IPA Matrix (Data-centered) + Iso-Diagonal (Abalo et al., 2006) — Items")
+    else:
+        ax.set_title("IPA Matrix (Data-centered) — Items")
+
     ax.set_xlabel("Performance (Mean)")
     ax.set_ylabel("Importance (Mean)")
-    ax.set_title("IPA Matrix (Data-centered) — Items")
     return fig
 
 
-def plot_ipa_dimensions(dim_stats, x_cut, y_cut):
+def plot_ipa_dimensions(dim_stats, x_cut, y_cut, show_iso_diagonal=False):
     fig, ax = plt.subplots(figsize=(9, 6))
     ax.scatter(dim_stats["Performance_mean"], dim_stats["Importance_mean"])
     for _, r in dim_stats.iterrows():
@@ -435,9 +458,22 @@ def plot_ipa_dimensions(dim_stats, x_cut, y_cut):
 
     ax.axvline(x_cut)
     ax.axhline(y_cut)
+
+    x_vals = dim_stats["Performance_mean"].dropna()
+    y_vals = dim_stats["Importance_mean"].dropna()
+    if len(x_vals) and len(y_vals):
+        pad = 0.2
+        ax.set_xlim(float(x_vals.min()) - pad, float(x_vals.max()) + pad)
+        ax.set_ylim(float(y_vals.min()) - pad, float(y_vals.max()) + pad)
+
+    if show_iso_diagonal:
+        _plot_iso_diagonal(ax, x_cut, y_cut, ax.get_xlim(), ax.get_ylim())
+        ax.set_title("IPA Matrix (Data-centered) + Iso-Diagonal (Abalo et al., 2006) — Dimensions")
+    else:
+        ax.set_title("IPA Matrix (Data-centered) — Dimensions")
+
     ax.set_xlabel("Performance (Mean)")
     ax.set_ylabel("Importance (Mean)")
-    ax.set_title("IPA Matrix (Data-centered) — Dimensions")
     return fig
 
 
@@ -626,8 +662,16 @@ else:
             )
 
             st.subheader("Plot IPA (Data-centered) — Items")
-            fig = plot_ipa(stats, x_cut, y_cut)
+            fig = plot_ipa_items(stats, x_cut, y_cut, show_iso_diagonal=False)
             st.pyplot(fig)
+
+            st.subheader("Plot IPA alternatif (Abalo dkk., 2006) — Items")
+            st.caption(
+                "Representasi alternatif mengombinasikan kuadran (cut-off = grand mean) dan garis diagonal 45° "
+                "(Iso-Diagonal Line; slope = 1) yang melalui titik (grand mean performance, grand mean importance)."
+            )
+            fig_alt = plot_ipa_items(stats, x_cut, y_cut, show_iso_diagonal=True)
+            st.pyplot(fig_alt)
 
             st.divider()
 
@@ -647,8 +691,16 @@ else:
             )
 
             st.subheader("Plot IPA (Data-centered) — Dimensions")
-            fig_dim = plot_ipa_dimensions(dim_stats, dx_cut, dy_cut)
+            fig_dim = plot_ipa_dimensions(dim_stats, dx_cut, dy_cut, show_iso_diagonal=False)
             st.pyplot(fig_dim)
+
+            st.subheader("Plot IPA alternatif (Abalo dkk., 2006) — Dimensions")
+            st.caption(
+                "Representasi alternatif mengombinasikan kuadran (cut-off = grand mean) dan garis diagonal 45° "
+                "(Iso-Diagonal Line; slope = 1) yang melalui titik (grand mean performance, grand mean importance)."
+            )
+            fig_dim_alt = plot_ipa_dimensions(dim_stats, dx_cut, dy_cut, show_iso_diagonal=True)
+            st.pyplot(fig_dim_alt)
 
     with tab2:
         st.subheader("Raw responses (flattened)")

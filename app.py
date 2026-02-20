@@ -22,11 +22,10 @@ if not DB_URL:
     st.error("DB belum dikonfigurasi. Set SUPABASE_DB_URL di Streamlit Secrets / env var.")
     st.stop()
 
-# ✅ Supabase Pooler + Streamlit Cloud: biasanya lebih stabil pakai pool_pre_ping + pool_recycle
 engine = create_engine(
     DB_URL,
     pool_pre_ping=True,
-    pool_recycle=1800,     # recycle koneksi 30 menit
+    pool_recycle=1800,
     pool_size=5,
     max_overflow=5,
 )
@@ -152,11 +151,6 @@ DIMS = group_by_dim(ITEMS)
 # DB helpers
 # =========================
 def insert_response(respondent_code, meta, perf_dict, imp_dict):
-    """
-    Cara paling stabil untuk Supabase Postgres:
-    - bindparam JSONB agar SQLAlchemy yang handle encoding JSON
-    - tidak perlu json.dumps dan tidak perlu CAST/::jsonb
-    """
     try:
         stmt = text("""
             INSERT INTO responses (respondent_code, meta, performance, importance)
@@ -220,7 +214,6 @@ def load_all_responses(limit=5000):
 
         records.append(rec)
 
-    # ✅ FIX: pastikan kolom minimal selalu ada walaupun tabel kosong
     base_cols = ["id", "created_at", "respondent_code"]
     df = pd.DataFrame.from_records(records)
 
@@ -233,19 +226,10 @@ def load_all_responses(limit=5000):
 
     return df
 
-# ✅ helper untuk hapus semua data (admin only)
 def delete_all_responses():
-    """
-    Menghapus SEMUA data pada tabel responses.
-    - TRUNCATE + RESTART IDENTITY akan mengosongkan tabel dan mereset sequence id.
-    - Jika ada foreign key dari tabel lain ke responses dan TRUNCATE error,
-      ganti ke: DELETE FROM responses
-    """
     try:
         with engine.begin() as conn:
             conn.execute(text("TRUNCATE TABLE responses RESTART IDENTITY"))
-            # alternatif:
-            # conn.execute(text("DELETE FROM responses"))
     except Exception as e:
         st.error("Gagal menghapus data. Detail error:")
         st.exception(e)
@@ -262,6 +246,9 @@ def _confirm_delete_all():
     st.session_state.delete_confirm_text = ""
     st.session_state.delete_all_done = True
 
+# =========================
+# STATS + IPA
+# =========================
 def compute_stats_and_ipa(df_flat: pd.DataFrame):
     rows = []
     for code in ITEM_CODES:
@@ -276,9 +263,14 @@ def compute_stats_and_ipa(df_flat: pd.DataFrame):
             "Importance_max": i.max(skipna=True),
             "Importance_mean": i.mean(skipna=True),
         })
+
     stats = pd.DataFrame(rows)
 
-    # ✅ FIX GAP: Gap = Performance - Importance (negatif jika performance < importance)
+    # ✅ PASTIKAN TIDAK ADA KOLOM LAMA
+    if "Gap_mean(I-P)" in stats.columns:
+        stats = stats.drop(columns=["Gap_mean(I-P)"])
+
+    # ✅ GAP YANG BENAR: P - I (negatif kalau importance > performance)
     stats["Gap_mean(P-I)"] = stats["Performance_mean"] - stats["Importance_mean"]
 
     # DATA-CENTERED cutoffs (mean of item means)
@@ -368,7 +360,6 @@ if page == "Responden":
 
     st.divider()
 
-    # Step 1: Performance
     if st.session_state.step == 1:
         st.header("Tahap 1 — Performance (Tingkat Persetujuan)")
         st.info("Nilai seberapa Anda setuju bahwa kemampuan/fungsi ini tersedia dan mendukung pekerjaan Anda.")
@@ -391,7 +382,6 @@ if page == "Responden":
             st.session_state.step = 2
             st.rerun()
 
-    # Step 2: Importance
     else:
         st.header("Tahap 2 — Importance (Tingkat Kepentingan)")
         st.info("Nilai seberapa penting kemampuan/fungsi ini untuk mendukung tugas Anda dalam layanan kesehatan jarak jauh.")
@@ -432,7 +422,6 @@ if page == "Responden":
                 )
                 st.success("Terima kasih! Jawaban Anda telah tersimpan.")
 
-                # reset untuk responden berikutnya
                 st.session_state.step = 1
                 st.session_state.perf = {}
                 st.session_state.imp = {}
@@ -449,9 +438,6 @@ else:
     if pwd != ADMIN_PASSWORD:
         st.stop()
 
-    # =========================
-    # ✅ Danger Zone (hapus semua data + konfirmasi) — FIXED
-    # =========================
     st.divider()
     st.subheader("Hapus Semua Data")
     st.caption("Aksi ini akan menghapus SEMUA respons di tabel responses dan tidak bisa dibatalkan.")
@@ -490,7 +476,6 @@ else:
                 disabled=not can_delete,
                 on_click=_confirm_delete_all,
             )
-
         with c2:
             st.button(
                 "❌ Batal",
@@ -517,9 +502,13 @@ else:
             with c2:
                 st.metric("Importance cut-off (mean global)", f"{y_cut:.3f}")
 
-            st.subheader("Statistik per item (min/max/mean) + GAP + Kuadran")
-            # ✅ tampilkan gap paling negatif di atas (prioritas perbaikan terbesar)
-            st.dataframe(stats.sort_values("Gap_mean(P-I)", ascending=True), use_container_width=True)
+            st.subheader("Statistik per item (min/max/mean) + GAP(P-I) + Kuadran")
+
+            # ✅ urutkan dari gap paling negatif (kinerja jauh di bawah kepentingan) ke paling positif
+            st.dataframe(
+                stats.sort_values("Gap_mean(P-I)", ascending=True),
+                use_container_width=True
+            )
 
             st.subheader("Plot IPA (Data-centered)")
             fig = plot_ipa(stats, x_cut, y_cut)
@@ -527,8 +516,6 @@ else:
 
     with tab2:
         st.subheader("Raw responses (flattened)")
-
-        # ✅ FIX: jangan sort kalau kolom belum ada (misal setelah hapus semua)
         if len(df) == 0 or "created_at" not in df.columns:
             st.info("Belum ada data.")
             st.dataframe(df, use_container_width=True)

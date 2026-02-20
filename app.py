@@ -277,7 +277,9 @@ def compute_stats_and_ipa(df_flat: pd.DataFrame):
             "Importance_mean": i.mean(skipna=True),
         })
     stats = pd.DataFrame(rows)
-    stats["Gap_mean(I-P)"] = stats["Importance_mean"] - stats["Performance_mean"]
+
+    # ✅ FIX GAP: Gap = Performance - Importance (negatif jika performance < importance)
+    stats["Gap_mean(P-I)"] = stats["Performance_mean"] - stats["Importance_mean"]
 
     # DATA-CENTERED cutoffs (mean of item means)
     x_cut = stats["Performance_mean"].mean()
@@ -516,7 +518,8 @@ else:
                 st.metric("Importance cut-off (mean global)", f"{y_cut:.3f}")
 
             st.subheader("Statistik per item (min/max/mean) + GAP + Kuadran")
-            st.dataframe(stats.sort_values("Gap_mean(I-P)", ascending=False), use_container_width=True)
+            # ✅ tampilkan gap paling negatif di atas (prioritas perbaikan terbesar)
+            st.dataframe(stats.sort_values("Gap_mean(P-I)", ascending=True), use_container_width=True)
 
             st.subheader("Plot IPA (Data-centered)")
             fig = plot_ipa(stats, x_cut, y_cut)

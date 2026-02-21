@@ -758,14 +758,8 @@ def _plot_quadrant_lines(ax, x_cut, y_cut, trimmed_like_example=False):
 # =========================
 # QUADRANT LABELS (AUTO-FIT: kecil + selalu muat dalam kuadran)
 # =========================
-def _annotate_quadrants(ax, x_cut, y_cut, trimmed_like_example=False):
-    """
-    Versi stabil:
-    - Selalu pakai axes coordinates (0–1)
-    - Tidak pernah keluar plot
-    - Tidak tergantung diagonal
-    """
 
+def _annotate_quadrants(ax, x_cut, y_cut, trimmed_like_example=False):
     q_fs = PLOT_FS_QUAD
     q_bbox = dict(boxstyle="round,pad=0.12", alpha=0.06, edgecolor="none")
 
@@ -781,7 +775,6 @@ def _annotate_quadrants(ax, x_cut, y_cut, trimmed_like_example=False):
             clip_on=True,
         )
 
-    # teks dibuat lebih sempit supaya tidak melebar
     txt_q1 = "Q1\nConcentrate"
     txt_q2 = "Q2\nKeep Up"
     txt_q3 = "Q3\nLow Priority"
@@ -793,64 +786,10 @@ def _annotate_quadrants(ax, x_cut, y_cut, trimmed_like_example=False):
         _put(0.25, 0.25, txt_q3)
         _put(0.75, 0.25, txt_q4)
     else:
-        # sedikit geser supaya enak dengan diagonal
         _put(0.18, 0.68, txt_q1)
         _put(0.78, 0.72, txt_q2)
         _put(0.18, 0.18, txt_q3)
         _put(0.72, 0.20, txt_q4)
-
-    # =========================
-    # MODE 1: Kuadran kotak biasa
-    # =========================
-    if not trimmed_like_example:
-        _put_axes(0.25, 0.75, "Q1\nConcentrate Here")
-        _put_axes(0.75, 0.75, "Q2\nKeep Up the Good Work")
-        _put_axes(0.25, 0.25, "Q3\nLow Priority")
-        _put_axes(0.75, 0.25, "Q4\nPossible Overkill")
-        return
-
-    # =========================
-    # MODE 2: Dengan diagonal + trimmed
-    # =========================
-    x0, x1 = ax.get_xlim()
-    y0, y1 = ax.get_ylim()
-    b = y_cut - x_cut
-
-    def y_diag(x):
-        return x + b
-
-    mx = 0.06 * (x1 - x0)
-    my = 0.06 * (y1 - y0)
-
-    # ---- Q1 (kiri atas)
-    x_q1 = x0 + 0.25 * (x_cut - x0)
-    y_q1 = min(y1 - my, max(y_cut + my, y_diag(x_q1) + my))
-    _put_data(x_q1, y_q1, "Q1\nConcentrate Here")
-
-    # ---- Q3 (kiri bawah)
-    x_q3 = x0 + 0.25 * (x_cut - x0)
-    y_q3 = y0 + 0.25 * (y_cut - y0)
-    y_q3 = min(y_q3, y_diag(x_q3) - my)
-    _put_data(x_q3, y_q3, "Q3\nLow Priority")
-
-    # ---- Q4 (kanan bawah)
-    x_q4 = x_cut + 0.55 * (x1 - x_cut)
-    y_q4 = y0 + 0.25 * (y_cut - y0)
-    _put_data(x_q4, y_q4, "Q4\nPossible Overkill")
-
-    # ---- Q2 (kanan atas) — SELALU dipastikan muncul
-    x_q2 = x_cut + 0.55 * (x1 - x_cut)
-    y_q2 = y_cut + 0.40 * (y1 - y_cut)
-
-    # pastikan tetap di bawah diagonal
-    if y_q2 >= y_diag(x_q2) - my:
-        y_q2 = y_diag(x_q2) - my
-
-    # jika area terlalu tipis, fallback ke axes coords
-    if y_q2 <= y_cut + my:
-        _put_axes(0.75, 0.80, "Q2\nKeep Up the Good Work")
-    else:
-        _put_data(x_q2, y_q2, "Q2\nKeep Up the Good Work")
 
 
 # =========================

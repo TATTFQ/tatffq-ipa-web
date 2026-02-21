@@ -519,6 +519,30 @@ def load_all_responses(limit=5000):
 
     return df
 
+def delete_responses_by_platform(platform_name: str):
+    """
+    Hapus hanya respons yang meta.platform == platform_name.
+    Aman untuk admin provider (scope_platform != None).
+    """
+    try:
+        plat = (platform_name or "").strip()
+        if not plat:
+            return
+
+        with engine.begin() as conn:
+            conn.execute(
+                text(
+                    """
+                    DELETE FROM responses
+                    WHERE TRIM(COALESCE(meta->>'platform','')) = :platform
+                    """
+                ),
+                {"platform": plat},
+            )
+    except Exception as e:
+        st.error("Gagal menghapus data platform. Detail error:")
+        st.exception(e)
+        st.stop()
 
 def delete_all_responses():
     try:
@@ -534,6 +558,18 @@ def _cancel_delete_all():
     st.session_state.confirm_delete_all = False
     st.session_state.delete_confirm_text = ""
 
+def _cancel_delete_platform():
+    st.session_state.confirm_delete_platform = False
+    st.session_state.delete_platform_confirm_text = ""
+
+
+def _confirm_delete_platform():
+    plat = st.session_state.get("admin_platform_scope", None)
+    if plat:
+        delete_responses_by_platform(plat)
+        st.session_state.delete_platform_done = True
+    st.session_state.confirm_delete_platform = False
+    st.session_state.delete_platform_confirm_text = ""
 
 def _confirm_delete_all():
     delete_all_responses()
@@ -1396,9 +1432,10 @@ def render_admin_dashboard():
 
     st.divider()
 
-    st.subheader("Hapus Semua Data")
-    st.caption("Aksi ini akan menghapus SEMUA respons di tabel responses dan tidak bisa dibatalkan.")
+    st.subheader("Hapus Data")
+    st.caption("Fitur hapus data berdasarkan role admin: admin_general bisa hapus semua; admin provider hanya hapus data platform-nya.")
 
+    # state init
     if "confirm_delete_all" not in st.session_state:
         st.session_state.confirm_delete_all = False
     if "delete_confirm_text" not in st.session_state:
@@ -1406,11 +1443,30 @@ def render_admin_dashboard():
     if "delete_all_done" not in st.session_state:
         st.session_state.delete_all_done = False
 
+    if "confirm_delete_platform" not in st.session_state:
+        st.session_state.confirm_delete_platform = False
+    if "delete_platform_confirm_text" not in st.session_state:
+        st.session_state.delete_platform_confirm_text = ""
+    if "delete_platform_done" not in st.session_state:
+        st.session_state.delete_platform_done = False
+
+    # success alerts
     if st.session_state.delete_all_done:
         st.success("Semua data berhasil dihapus.")
         st.session_state.delete_all_done = False
 
-    can_delete_all = (scope_platform is None)
+    if st.session_state.delete_platform_done:
+        st.success(f"Data platform **{scope_platform}** berhasil dihapus.")
+        st.session_state.delete_platform_done = False
+
+    can_delete_all = (scope_platform is None)          # hanya admin_general
+    can_delete_platform = (scope_platform is not None) # hanya admin provider
+
+# =========================
+# A) Hapus SEMUA data (admin_general)
+# =========================
+    st.markdown("### A) Hapus semua data (khusus admin_general)")
+    st.caption("Aksi ini akan menghapus SEMUA respons di tabel responses dan tidak bisa dibatalkan.")
 
     colA, colB = st.columns([1, 3])
     with colA:
@@ -1435,6 +1491,51 @@ def render_admin_dashboard():
             )
         with c2:
             st.button("❌ Batal", on_click=_cancel_delete_all)
+
+st.divider()
+
+# =========================
+# B) Hapus data PLATFORM saja (admin provider)
+# =========================
+st.markdown("### B) Hapus data platform saya (khusus admin provider)")
+if scope_platform:
+    st.caption(f"Aksi ini hanya menghapus respons dengan platform **{scope_platform}** dan tidak bisa dibatalkan.")
+else:
+    st.caption("Login sebagai admin_general: fitur ini tidak diperlukan (silakan gunakan hapus semua data atau filter).")
+
+colP1, colP2 = st.columns([1, 3])
+with colP1:
+    if st.button(
+        f"🗑️ Hapus data {scope_platform}" if scope_platform else "🗑️ Hapus data platform",
+        type="secondary",
+        disabled=not can_delete_platform,
+    ):
+        st.session_state.confirm_delete_platform = True
+
+if not can_delete_platform:
+    st.info("Catatan: Tombol ini hanya aktif untuk admin provider (mis. admin_gooddoctor).")
+
+if st.session_state.confirm_delete_platform and scope_platform:
+    st.warning(
+        f"Konfirmasi: Anda yakin ingin menghapus SEMUA data untuk platform **{scope_platform}**?",
+        icon="⚠️"
+    )
+    confirm_text_plat = st.text_input(
+        f'Ketik "DELETE" untuk konfirmasi penghapusan data {scope_platform}',
+        key="delete_platform_confirm_text",
+    )
+    can_delete_plat = (confirm_text_plat.strip().upper() == "DELETE")
+
+    c1, c2 = st.columns(2)
+    with c1:
+        st.button(
+            "✅ Ya, hapus data platform",
+            type="primary",
+            disabled=not can_delete_plat,
+            on_click=_confirm_delete_platform,
+        )
+    with c2:
+        st.button("❌ Batal", on_click=_cancel_delete_platform)
 
     st.divider()
 

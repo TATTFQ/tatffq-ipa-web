@@ -17,14 +17,15 @@ from sqlalchemy.dialects.postgresql import JSONB
 st.set_page_config(page_title="TATTFQ Web Survey", layout="wide")
 
 DB_URL = st.secrets.get("SUPABASE_DB_URL", os.getenv("SUPABASE_DB_URL", ""))
-ADMIN_PASSWORD = st.secrets.get("ADMIN_PASSWORD", os.getenv("ADMIN_PASSWORD", ""))
 
-# === ADDED: Admin accounts (username+password) + scope ===
+# --- Admin users (role-based access) ---
+# admin_general: bisa lihat semua data
+# admin_* lainnya: hanya bisa lihat data sesuai platform yang dinilai
 ADMIN_USERS = {
-    "admin_general": {"password": "admin123", "scope": "ALL"},
-    "admin_alodokter": {"password": "admin_alodokter123", "scope": "Alodokter"},
-    "admin_gooddoctor": {"password": "admin_gooddoctor123", "scope": "Good Doctor"},
-    "admin_halodoc": {"password": "admin_halodoc123", "scope": "Halodoc"},
+    "admin_general": {"password": "admin123", "platform": None},
+    "admin_alodokter": {"password": "admin_alodokter123", "platform": "Alodokter"},
+    "admin_gooddoctor": {"password": "admin_gooddoctor123", "platform": "Good Doctor"},
+    "admin_halodoc": {"password": "admin_halodoc123", "platform": "Halodoc"},
 }
 
 if not DB_URL:
@@ -256,7 +257,7 @@ LAST_USE_OPTS = [
     "Lebih dari 1 tahun yang lalu",
 ]
 
-# === ADDED: platform dropdown options ===
+# --- Platform Telemedicine yang akan dinilai (dropdown) ---
 PLATFORM_OPTS = ["", "Alodokter", "Good Doctor", "Halodoc"]
 
 # =========================
@@ -327,7 +328,7 @@ def _new_respondent_session():
         "age": "",
         "specialty": "",
         "specialty_other": "",
-        "platform": "",
+        "platform": "",  # <-- platform yang akan dinilai (dropdown)
         "telemedicine_duration": "",
         "telemedicine_frequency": "",
         "telemedicine_last_use": "",
@@ -350,7 +351,7 @@ def _reset_survey_state(go_home: bool = False):
         "age": "",
         "specialty": "",
         "specialty_other": "",
-        "platform": "",
+        "platform": "",  # <-- platform yang akan dinilai (dropdown)
         "telemedicine_duration": "",
         "telemedicine_frequency": "",
         "telemedicine_last_use": "",
@@ -419,6 +420,7 @@ def _confirm_and_submit():
         "gender": profile.get("gender", ""),
         "age": profile.get("age", ""),
         "specialty": specialty_final,
+        # platform yang dinilai disimpan ke meta_platform (dipakai filter admin)
         "platform": (profile.get("platform", "") or "").strip(),
         "telemedicine_duration": profile.get("telemedicine_duration", ""),
         "telemedicine_frequency": profile.get("telemedicine_frequency", ""),
@@ -740,12 +742,10 @@ if "admin_authed" not in st.session_state:
     st.session_state.admin_authed = False
 if "admin_pwd_attempt" not in st.session_state:
     st.session_state.admin_pwd_attempt = False
-
-# === ADDED: store admin identity + scope ===
 if "admin_username" not in st.session_state:
     st.session_state.admin_username = ""
-if "admin_scope" not in st.session_state:
-    st.session_state.admin_scope = None  # "ALL" atau nama platform
+if "admin_platform_scope" not in st.session_state:
+    st.session_state.admin_platform_scope = None  # None = semua (admin_general)
 
 _run_scroll_to_top_if_requested()
 _ensure_default_radio_state()
@@ -811,7 +811,7 @@ def render_respondent():
             if specialty == "Lainnya":
                 specialty_other = st.text_input("Lainnya (isi bidang spesialisasi)", value=prof.get("specialty_other", ""))
 
-        # === CHANGED: platform -> dropdown + label changed ===
+        # --- CHANGED: platform jadi dropdown + label baru ---
         platform = st.selectbox(
             "Aplikasi/Platform Telemedicine yang akan dinilai",
             PLATFORM_OPTS,
@@ -844,7 +844,7 @@ def render_respondent():
             "age": age,
             "specialty": specialty,
             "specialty_other": specialty_other,
-            "platform": platform,
+            "platform": platform,  # <-- dropdown value
             "telemedicine_duration": tele_dur,
             "telemedicine_frequency": tele_freq,
             "telemedicine_last_use": tele_last,
@@ -856,7 +856,6 @@ def render_respondent():
         if not age: missing.append("Usia")
         if not specialty: missing.append("Bidang spesialisasi")
         if specialty == "Lainnya" and not specialty_other.strip(): missing.append("Spesialisasi (Lainnya)")
-        # === ADDED: platform required ===
         if not platform: missing.append("Aplikasi/Platform Telemedicine yang akan dinilai")
         if not tele_dur: missing.append("Lama menggunakan telemedicine")
         if not tele_freq: missing.append("Frekuensi telemedicine")
@@ -974,114 +973,121 @@ def render_admin_login():
         _go_home()
         st.rerun()
 
-    # === CHANGED: username + password login ===
-    username = st.text_input("Username")
-    pwd = st.text_input("Password", type="password")
+    # --- CHANGED: username + password, role-based ---
+    username = st.text_input("Admin username", value=st.session_state.get("admin_username", ""))
+    pwd = st.text_input("Admin password", type="password")
 
     col1, col2 = st.columns([1, 1])
     with col1:
         if st.button("Masuk", type="primary", use_container_width=True):
             st.session_state.admin_pwd_attempt = True
-            u = (username or "").strip()
-            p = (pwd or "").strip()
 
-            if u in ADMIN_USERS and ADMIN_USERS[u]["password"] == p:
+            user = (username or "").strip()
+            user_info = ADMIN_USERS.get(user)
+
+            if user_info and pwd == user_info.get("password", ""):
                 st.session_state.admin_authed = True
-                st.session_state.admin_username = u
-                st.session_state.admin_scope = ADMIN_USERS[u]["scope"]  # "ALL" / platform
+                st.session_state.admin_username = user
+                st.session_state.admin_platform_scope = user_info.get("platform", None)  # None = semua
                 st.session_state.view = "admin"
                 _request_scroll_to_top()
                 st.rerun()
             else:
                 st.session_state.admin_authed = False
                 st.session_state.admin_username = ""
-                st.session_state.admin_scope = None
-                st.error("Username atau password salah!")
+                st.session_state.admin_platform_scope = None
+                st.error("Username/password salah! Isi dengan benar!")
     with col2:
         if st.button("Reset", use_container_width=True):
             st.session_state.admin_pwd_attempt = False
             st.session_state.admin_authed = False
             st.session_state.admin_username = ""
-            st.session_state.admin_scope = None
+            st.session_state.admin_platform_scope = None
             st.rerun()
 
 def render_admin_dashboard():
     st.title("Admin Dashboard — TATTFQ")
+
+    # info scope
+    scope_platform = st.session_state.get("admin_platform_scope", None)
+    admin_user = st.session_state.get("admin_username", "")
+    if scope_platform:
+        st.caption(f"Login sebagai: **{admin_user}** (Akses data: **{scope_platform}**)")  # provider admin
+    else:
+        st.caption(f"Login sebagai: **{admin_user}** (Akses data: **SEMUA platform**)")  # admin_general
 
     top_left, top_right = st.columns([1, 1])
     with top_left:
         if st.button("⬅ Kembali ke Halaman Utama"):
             st.session_state.admin_authed = False
             st.session_state.admin_username = ""
-            st.session_state.admin_scope = None
+            st.session_state.admin_platform_scope = None
             _go_home()
             st.rerun()
     with top_right:
         if st.button("🚪 Logout"):
             st.session_state.admin_authed = False
             st.session_state.admin_username = ""
-            st.session_state.admin_scope = None
+            st.session_state.admin_platform_scope = None
             st.session_state.view = "admin_login"
             _request_scroll_to_top()
             st.rerun()
 
     st.divider()
 
-    # === CHANGED: delete-all only for admin utama (scope ALL) ===
-    scope = st.session_state.get("admin_scope")
+    st.subheader("Hapus Semua Data")
+    st.caption("Aksi ini akan menghapus SEMUA respons di tabel responses dan tidak bisa dibatalkan.")
 
-    if scope == "ALL":
-        st.subheader("Hapus Semua Data")
-        st.caption("Aksi ini akan menghapus SEMUA respons di tabel responses dan tidak bisa dibatalkan.")
+    if "confirm_delete_all" not in st.session_state:
+        st.session_state.confirm_delete_all = False
+    if "delete_confirm_text" not in st.session_state:
+        st.session_state.delete_confirm_text = ""
+    if "delete_all_done" not in st.session_state:
+        st.session_state.delete_all_done = False
 
-        if "confirm_delete_all" not in st.session_state:
-            st.session_state.confirm_delete_all = False
-        if "delete_confirm_text" not in st.session_state:
-            st.session_state.delete_confirm_text = ""
-        if "delete_all_done" not in st.session_state:
-            st.session_state.delete_all_done = False
+    if st.session_state.delete_all_done:
+        st.success("Semua data berhasil dihapus.")
+        st.session_state.delete_all_done = False
 
-        if st.session_state.delete_all_done:
-            st.success("Semua data berhasil dihapus.")
-            st.session_state.delete_all_done = False
+    # --- CHANGED: hanya admin_general yang bisa hapus semua ---
+    can_delete_all = (scope_platform is None)
 
-        colA, colB = st.columns([1, 3])
-        with colA:
-            if st.button("🗑️ Hapus semua data", type="secondary"):
-                st.session_state.confirm_delete_all = True
+    colA, colB = st.columns([1, 3])
+    with colA:
+        if st.button("🗑️ Hapus semua data", type="secondary", disabled=not can_delete_all):
+            st.session_state.confirm_delete_all = True
 
-        if st.session_state.confirm_delete_all:
-            st.warning("Konfirmasi: Anda yakin ingin menghapus SEMUA data respons?", icon="⚠️")
-            confirm_text = st.text_input('Ketik "DELETE" untuk konfirmasi', key="delete_confirm_text")
-            can_delete = (confirm_text.strip().upper() == "DELETE")
+    if not can_delete_all:
+        st.info("Catatan: Hanya **admin_general** yang dapat menghapus semua data.")
 
-            c1, c2 = st.columns(2)
-            with c1:
-                st.button(
-                    "✅ Ya, hapus sekarang",
-                    type="primary",
-                    disabled=not can_delete,
-                    on_click=_confirm_delete_all,
-                )
-            with c2:
-                st.button("❌ Batal", on_click=_cancel_delete_all)
+    if st.session_state.confirm_delete_all:
+        st.warning("Konfirmasi: Anda yakin ingin menghapus SEMUA data respons?", icon="⚠️")
+        confirm_text = st.text_input('Ketik "DELETE" untuk konfirmasi', key="delete_confirm_text")
+        can_delete = (confirm_text.strip().upper() == "DELETE")
 
-        st.divider()
-    else:
-        st.caption("Anda login sebagai Admin Provider. Aksi penghapusan data hanya tersedia untuk Admin Utama.")
-        st.divider()
+        c1, c2 = st.columns(2)
+        with c1:
+            st.button(
+                "✅ Ya, hapus sekarang",
+                type="primary",
+                disabled=not can_delete,
+                on_click=_confirm_delete_all,
+            )
+        with c2:
+            st.button("❌ Batal", on_click=_cancel_delete_all)
 
-    # === CHANGED: load & filter by platform scope ===
-    df_all = load_all_responses()
+    st.divider()
 
-    if scope and scope != "ALL":
-        df = df_all[df_all.get("meta_platform", "").astype(str) == str(scope)].copy()
-        st.info(f"Mode Admin Provider — Platform terpilih: **{scope}**")
-    else:
-        df = df_all
-        st.info("Mode Admin Utama — Menampilkan **SEMUA** platform")
+    df = load_all_responses()
 
-    st.success(f"Total respon tersimpan (terfilter): {len(df)}")
+    # --- CHANGED: filter data berdasarkan platform untuk admin provider ---
+    if scope_platform:
+        if "meta_platform" in df.columns:
+            df = df[df["meta_platform"].fillna("").astype(str).str.strip() == scope_platform].copy()
+        else:
+            df = df.iloc[0:0].copy()
+
+    st.success(f"Total respon tersimpan: {len(df)}")
 
     tab1, tab2, tab3, tab4 = st.tabs(["Ringkasan & IPA", "Raw Data", "Kuadran", "Profil & Durasi"])
 
@@ -1126,6 +1132,7 @@ def render_admin_dashboard():
 
     with tab2:
         st.subheader("Raw responses (flattened)")
+        st.caption("Kolom waktu per responden tersedia di: meta_started_at_utc, meta_submitted_at_utc, meta_duration_sec.")
         if len(df) == 0 or "created_at" not in df.columns:
             st.info("Belum ada data.")
             st.dataframe(df, use_container_width=True)
@@ -1139,7 +1146,7 @@ def render_admin_dashboard():
             stats, _, _, quad_lists = compute_stats_and_ipa(df)
             dim_stats, _, _, dim_quad_lists = compute_dimension_stats_and_ipa(df)
 
-            st.subheader("Daftar item per kuadran (kode + isi item)")
+            st.subheader("Daftar item per kuadran (kode: isi item)")
             quad_order = [
                 "I - Concentrate Here",
                 "II - Keep Up the Good Work",
@@ -1152,42 +1159,26 @@ def render_admin_dashboard():
                 if not items:
                     st.write(["(kosong)"])
                 else:
-                    pretty = [f"**{code}** — {ITEM_TEXT.get(code, '')}" for code in items]
-                    st.write(pretty)
+                    pretty = [f"- {code}: {ITEM_TEXT.get(code, '')}" for code in items]
+                    st.markdown("\n".join(pretty))
 
             st.divider()
 
-            st.subheader("Daftar dimensi per kuadran (kode + nama lengkap)")
+            st.subheader("Daftar dimensi per kuadran (kode: nama lengkap)")
             for q in quad_order:
                 st.markdown(f"### {q}")
                 dims = dim_quad_lists.get(q, [])
                 if not dims:
                     st.write(["(kosong)"])
                 else:
-                    pretty = [f"**{abbr}** — {DIM_NAME_BY_ABBR.get(abbr, '')}" for abbr in dims]
-                    st.write(pretty)
+                    pretty = [f"- {abbr}: {DIM_NAME_BY_ABBR.get(abbr, '')}" for abbr in dims]
+                    st.markdown("\n".join(pretty))
 
     with tab4:
         if len(df) == 0:
             st.info("Belum ada data.")
         else:
             st.subheader("Ringkasan Durasi Pengisian (detik)")
-            dur = pd.to_numeric(df.get("meta_duration_sec", df.get("meta_duration_sec", df.get("meta_duration_sec", pd.Series(dtype="float")))), errors="coerce")
-            # meta key yang dipakai: meta_duration_sec? -> kita simpan meta_duration_sec sebagai meta_duration_sec? (kita simpan meta_duration_sec sebagai meta_duration_sec? sebenarnya key: duration_sec)
-            # koreksi: flatten memakai prefix meta_, jadi kolomnya meta_duration_sec bila key duration_sec
-            dur = pd.to_numeric(df.get("meta_duration_sec", df.get("meta_duration_sec", df.get("meta_duration_sec", pd.Series(dtype="float")))), errors="coerce")
-            # fallback yang benar: key meta_duration_sec harus meta_duration_sec? tidak, kita simpan duration_sec -> kolom meta_duration_sec
-            if "meta_duration_sec" not in df.columns and "meta_duration_sec" not in df.columns and "meta_duration_sec" not in df.columns:
-                dur = pd.to_numeric(df.get("meta_duration_sec", pd.Series(dtype="float")), errors="coerce")
-
-            dur = pd.to_numeric(df.get("meta_duration_sec", df.get("meta_duration_sec", df.get("meta_duration_sec", pd.Series(dtype="float")))), errors="coerce")
-            if "meta_duration_sec" not in df.columns:
-                dur = pd.to_numeric(df.get("meta_duration_sec", pd.Series(dtype="float")), errors="coerce")
-            # yang benar:
-            dur = pd.to_numeric(df.get("meta_duration_sec", pd.Series(dtype="float")), errors="coerce")
-            if "meta_duration_sec" not in df.columns:
-                dur = pd.to_numeric(df.get("meta_duration_sec", pd.Series(dtype="float")), errors="coerce")
-            # final: pakai meta_duration_sec kalau ada, kalau tidak pakai meta_duration_sec tidak ada (aman)
             dur = pd.to_numeric(df.get("meta_duration_sec", pd.Series(dtype="float")), errors="coerce")
 
             c1, c2, c3 = st.columns(3)
@@ -1214,6 +1205,7 @@ def render_admin_dashboard():
                 ("Jenis kelamin", "meta_gender"),
                 ("Usia", "meta_age"),
                 ("Bidang spesialisasi", "meta_specialty"),
+                ("Platform yang dinilai", "meta_platform"),
                 ("Lama menggunakan telemedicine", "meta_telemedicine_duration"),
                 ("Frekuensi telemedicine", "meta_telemedicine_frequency"),
                 ("Terakhir menggunakan telemedicine", "meta_telemedicine_last_use"),
@@ -1224,16 +1216,6 @@ def render_admin_dashboard():
                 with grid[idx % 2]:
                     st.markdown(f"**{title}**")
                     st.dataframe(_vc(colname), use_container_width=True, height=220)
-
-            st.markdown("**Platform (free text) — contoh top values**")
-            plat = df.get("meta_platform", pd.Series(dtype="object")).fillna("").astype(str)
-            plat = plat[plat.str.strip() != ""]
-            if plat.empty:
-                st.write("(kosong)")
-            else:
-                top = plat.value_counts().head(15).reset_index()
-                top.columns = ["Platform", "Count"]
-                st.dataframe(top, use_container_width=True)
 
 # =========================
 # ROUTING

@@ -742,37 +742,97 @@ def _plot_quadrant_lines(ax, x_cut, y_cut, trimmed_like_example=False):
 
 
 # =========================
-# QUADRANT LABELS (UPDATED - ALWAYS INSIDE PLOT)
+# QUADRANT LABELS (UPDATED - PLACE IN CORRECT REGIONS WHEN DIAGONAL/TRIMMED)
 # =========================
 def _annotate_quadrants(ax, x_cut, y_cut, trimmed_like_example=False):
     """
-    Menulis nama kuadran yang selalu berada DI DALAM area plot
-    (pakai koordinat relatif axes: ax.transAxes), sehingga tidak pernah keluar batas.
+    - Mode biasa: label ditaruh pakai koordinat axes (4 kotak standar).
+    - Mode trimmed_like_example=True: label diposisikan berdasar koordinat DATA,
+      agar jatuh di region poligon yang benar ketika ada diagonal + garis kuadran trimmed.
+
+      Definisi region (sesuai permintaan):
+        Q2 = di bawah diagonal & di atas garis horizontal (y >= y_cut, y < y_diag)
+        Q3 = di bawah diagonal & di kiri garis vertikal (x < x_cut, y < y_diag)
     """
+
     def put_axes(xa, ya, text):
         ax.text(
             xa, ya, text,
-            transform=ax.transAxes,   # ✅ kunci: koordinat relatif 0..1
-            ha="center",
-            va="center",
-            fontsize=8,
-            fontweight="normal",
-            alpha=0.75,
-            clip_on=True,
-            bbox=dict(
-                boxstyle="round,pad=0.15",
-                alpha=0.08,
-                edgecolor="none"
-            )
+            transform=ax.transAxes,
+            ha="center", va="center",
+            fontsize=8, fontweight="normal",
+            alpha=0.75, clip_on=True,
+            bbox=dict(boxstyle="round,pad=0.15", alpha=0.08, edgecolor="none"),
         )
 
-    # Posisi label di dalam kotak plot (0..1).
-    # trimmed_like_example dipertahankan supaya signature tidak berubah,
-    # tetapi posisi tetap aman di dalam plot.
-    put_axes(0.23, 0.78, "Q1\nConcentrate Here")
-    put_axes(0.77, 0.78, "Q2\nKeep Up the Good Work")
-    put_axes(0.23, 0.22, "Q3\nLow Priority")
-    put_axes(0.77, 0.22, "Q4\nPossible Overkill")
+    def put_data(x, y, text):
+        ax.text(
+            x, y, text,
+            ha="center", va="center",
+            fontsize=8, fontweight="normal",
+            alpha=0.75, clip_on=True,
+            bbox=dict(boxstyle="round,pad=0.15", alpha=0.08, edgecolor="none"),
+        )
+
+    # --- Mode tanpa diagonal/trim (layout kotak biasa) ---
+    if not trimmed_like_example:
+        put_axes(0.23, 0.78, "Q1\nConcentrate Here")
+        put_axes(0.77, 0.78, "Q2\nKeep Up the Good Work")
+        put_axes(0.23, 0.22, "Q3\nLow Priority")
+        put_axes(0.77, 0.22, "Q4\nPossible Overkill")
+        return
+
+    # --- Mode diagonal + trimmed ---
+    x0, x1 = ax.get_xlim()
+    y0, y1 = ax.get_ylim()
+
+    # diagonal: y = x + b melewati (x_cut, y_cut)
+    b = y_cut - x_cut
+
+    def y_diag(x):
+        return x + b
+
+    def clamp(v, lo, hi):
+        return max(lo, min(hi, v))
+
+    # Margin kecil supaya tidak menempel garis
+    mx = 0.02 * (x1 - x0)
+    my = 0.02 * (y1 - y0)
+
+    # Q1: kiri-atas, pastikan di atas diagonal
+    x_q1 = x0 + 0.28 * (x_cut - x0)
+    y_q1 = y_cut + 0.55 * (y1 - y_cut)
+    y_q1 = max(y_q1, y_diag(x_q1) + my)
+    y_q1 = clamp(y_q1, y0 + my, y1 - my)
+
+    # Q2: kanan, di atas y_cut tapi DI BAWAH diagonal
+    x_q2 = x_cut + 0.62 * (x1 - x_cut)
+    y_top_q2 = y_diag(x_q2) - my
+    # jika diagonal terlalu rendah (kasus ekstrim), fallback aman
+    if y_top_q2 <= y_cut + my:
+        y_q2 = y_cut + 0.10 * (y1 - y_cut)
+    else:
+        y_q2 = y_cut + 0.45 * (y_top_q2 - y_cut)
+    y_q2 = clamp(y_q2, y_cut + my, min(y_top_q2, y1 - my))
+
+    # Q3: kiri, di kiri x_cut dan DI BAWAH diagonal
+    x_q3 = x0 + 0.38 * (x_cut - x0)
+    y_top_q3 = y_diag(x_q3) - my
+    # ambil y cukup rendah agar terlihat "Low Priority" dan tetap < diagonal
+    y_q3_cap = min(y_top_q3, y_cut - my) if (y_cut - my) > y0 else y_top_q3
+    y_q3 = y0 + 0.28 * (y_q3_cap - y0)
+    y_q3 = clamp(y_q3, y0 + my, y_top_q3)
+
+    # Q4: kanan-bawah, pastikan di bawah diagonal (dan biasanya di bawah y_cut)
+    x_q4 = x_cut + 0.65 * (x1 - x_cut)
+    y_q4 = y0 + 0.28 * (y_cut - y0)
+    y_q4 = min(y_q4, y_diag(x_q4) - my)
+    y_q4 = clamp(y_q4, y0 + my, y1 - my)
+
+    put_data(x_q1, y_q1, "Q1\nConcentrate Here")
+    put_data(x_q2, y_q2, "Q2\nKeep Up the Good Work")
+    put_data(x_q3, y_q3, "Q3\nLow Priority")
+    put_data(x_q4, y_q4, "Q4\nPossible Overkill")
 
 
 # =========================

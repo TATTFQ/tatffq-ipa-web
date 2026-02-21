@@ -1680,28 +1680,28 @@ def render_admin_dashboard():
             st.dataframe(show, use_container_width=True)
 
     with tab3:
-    if len(df) == 0:
-        st.info("Belum ada data (atau tidak ada data pada periode terpilih).")
-    else:
-        stats, _, _, quad_v1_items, quad_v2_items = compute_stats_and_ipa(df)
-        dim_stats, _, _, quad_v1_dims, quad_v2_dims = compute_dimension_stats_and_ipa(df)
+        if len(df) == 0:
+            st.info("Belum ada data (atau tidak ada data pada periode terpilih).")
+        else:
+            stats, _, _, quad_v1_items, quad_v2_items = compute_stats_and_ipa(df)
+            dim_stats, _, _, quad_v1_dims, quad_v2_dims = compute_dimension_stats_and_ipa(df)
 
-        quad_order = [
-            "I - Concentrate Here",
-            "II - Keep Up the Good Work",
-            "III - Low Priority",
-            "IV - Possible Overkill",
-        ]
+            quad_order = [
+                "I - Concentrate Here",
+                "II - Keep Up the Good Work",
+                "III - Low Priority",
+                "IV - Possible Overkill",
+            ]
 
-        def _side_by_side_table(left_list, right_list, left_fmt, right_fmt):
-            L = [left_fmt(x) for x in (left_list or [])]
-            R = [right_fmt(x) for x in (right_list or [])]
-            n = max(len(L), len(R), 1)
-            if len(L) < n:
-                L += [""] * (n - len(L))
-            if len(R) < n:
-                R += [""] * (n - len(R))
-            return pd.DataFrame({"Versi 1": L, "Versi 2": R})
+            def _side_by_side_table(left_list, right_list, left_fmt, right_fmt):
+                L = [left_fmt(x) for x in (left_list or [])]
+                R = [right_fmt(x) for x in (right_list or [])]
+                n = max(len(L), len(R), 1)
+                if len(L) < n:
+                    L += [""] * (n - len(L))
+                if len(R) < n:
+                    R += [""] * (n - len(R))
+                return pd.DataFrame({"Versi 1": L, "Versi 2": R})
 
         # =========================
         # ITEMS

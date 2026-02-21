@@ -1715,45 +1715,45 @@ def render_admin_dashboard():
                     R += [""] * (n - len(R))
                 return pd.DataFrame({"Versi 1": L, "Versi 2": R})
 
-        # =========================
-        # ITEMS
-        # =========================
-        st.subheader("Daftar item per kuadran (Versi 1 vs Versi 2)")
+            # =========================
+            # ITEMS
+            # =========================
+            st.subheader("Daftar item per kuadran (Versi 1 vs Versi 2)")
 
-        for q in quad_order:
-            st.markdown(f"### {q}")
+            for q in quad_order:
+                st.markdown(f"### {q}")
 
-            left_items = quad_v1_items.get(q, [])
-            right_items = quad_v2_items.get(q, [])
+                left_items = quad_v1_items.get(q, [])
+                right_items = quad_v2_items.get(q, [])
 
-            df_cmp = _side_by_side_table(
-                left_items,
-                right_items,
-                left_fmt=lambda code: f"{code}: {ITEM_TEXT.get(code, '')}",
-                right_fmt=lambda code: f"{code}: {ITEM_TEXT.get(code, '')}",
-            )
-            st.dataframe(df_cmp, use_container_width=True, hide_index=True)
+                df_cmp = _side_by_side_table(
+                    left_items,
+                    right_items,
+                    left_fmt=lambda code: f"{code}: {ITEM_TEXT.get(code, '')}",
+                    right_fmt=lambda code: f"{code}: {ITEM_TEXT.get(code, '')}",
+                )
+                st.dataframe(df_cmp, use_container_width=True, hide_index=True)
 
-        st.divider()
+            st.divider()
 
-        # =========================
-        # DIMENSIONS
-        # =========================
-        st.subheader("Daftar dimensi per kuadran (Versi 1 vs Versi 2)")
+            # =========================
+            # DIMENSIONS
+            # =========================
+            st.subheader("Daftar dimensi per kuadran (Versi 1 vs Versi 2)")
 
-        for q in quad_order:
-            st.markdown(f"### {q}")
+            for q in quad_order:
+                st.markdown(f"### {q}")
 
-            left_dims = quad_v1_dims.get(q, [])
-            right_dims = quad_v2_dims.get(q, [])
+                left_dims = quad_v1_dims.get(q, [])
+                right_dims = quad_v2_dims.get(q, [])
 
-            df_cmp = _side_by_side_table(
-                left_dims,
-                right_dims,
-                left_fmt=lambda abbr: f"{abbr}: {DIM_NAME_BY_ABBR.get(abbr, '')}",
-                right_fmt=lambda abbr: f"{abbr}: {DIM_NAME_BY_ABBR.get(abbr, '')}",
-            )
-            st.dataframe(df_cmp, use_container_width=True, hide_index=True)
+                df_cmp = _side_by_side_table(
+                    left_dims,
+                    right_dims,
+                    left_fmt=lambda abbr: f"{abbr}: {DIM_NAME_BY_ABBR.get(abbr, '')}",
+                    right_fmt=lambda abbr: f"{abbr}: {DIM_NAME_BY_ABBR.get(abbr, '')}",
+                )
+                st.dataframe(df_cmp, use_container_width=True, hide_index=True)
 
     with tab4:
         if len(df) == 0:

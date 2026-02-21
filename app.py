@@ -541,6 +541,22 @@ def _confirm_delete_all():
     st.session_state.delete_confirm_text = ""
     st.session_state.delete_all_done = True
 
+# =========================
+# MATPLOTLIB FONT CONFIG (GLOBAL)
+# =========================
+PLOT_FS_TITLE = 18
+PLOT_FS_AXIS  = 14
+PLOT_FS_TICK  = 12
+PLOT_FS_POINT = 10     # label titik (item/dim)
+PLOT_FS_QUAD  = 10     # label kuadran
+
+plt.rcParams.update({
+    "font.size": PLOT_FS_TICK,
+    "axes.titlesize": PLOT_FS_TITLE,
+    "axes.labelsize": PLOT_FS_AXIS,
+    "xtick.labelsize": PLOT_FS_TICK,
+    "ytick.labelsize": PLOT_FS_TICK,
+})
 
 # =========================
 # STATS + IPA
@@ -744,77 +760,50 @@ def _plot_quadrant_lines(ax, x_cut, y_cut, trimmed_like_example=False):
 # =========================
 def _annotate_quadrants(ax, x_cut, y_cut, trimmed_like_example=False):
     """
-    Label kuadran:
-    - Font kecil
-    - Auto-fit (turun ukuran font sampai teks muat dalam area kuadran)
-    - Aman untuk versi diagonal + trimmed
+    Label kuadran dengan font konsisten.
+    - Mode normal: pakai axes coordinates (pasti tampil).
+    - Mode diagonal+trimmed: pakai data coordinates + fallback agar Q2 tidak hilang.
     """
-    fig = ax.figure
 
-    # --- Helper: convert rect in axes coords -> display pixel rect ---
-    def _rect_axes_to_disp(xa0, ya0, xa1, ya1):
-        p0 = ax.transAxes.transform((xa0, ya0))
-        p1 = ax.transAxes.transform((xa1, ya1))
-        x0, y0 = p0
-        x1, y1 = p1
-        return min(x0, x1), min(y0, y1), max(x0, x1), max(y0, y1)
+    q_fs = PLOT_FS_QUAD
+    q_bbox = dict(boxstyle="round,pad=0.15", alpha=0.08, edgecolor="none")
 
-    def _rect_data_to_disp(xd0, yd0, xd1, yd1):
-        p0 = ax.transData.transform((xd0, yd0))
-        p1 = ax.transData.transform((xd1, yd1))
-        x0, y0 = p0
-        x1, y1 = p1
-        return min(x0, x1), min(y0, y1), max(x0, x1), max(y0, y1)
+    def _put_axes(xa, ya, text):
+        ax.text(
+            xa, ya, text,
+            transform=ax.transAxes,
+            ha="center", va="center",
+            fontsize=q_fs,
+            alpha=0.8,
+            bbox=q_bbox,
+            zorder=6,
+            clip_on=True
+        )
 
-    # --- Helper: shrink-to-fit text ---
-   def _draw_fit_text(x, y, text, rect_disp, transform):
-    # Font label kuadran dibuat SERAGAM dan paling kecil
-    q_fs = 4
-    q_bbox = dict(boxstyle="round,pad=0.08", alpha=0.06, edgecolor="none")
-
-    ax.text(
-        x, y, text,
-        transform=transform,
-        ha="center", va="center",
-        fontsize=q_fs,
-        fontweight="normal",
-        alpha=0.75,
-        clip_on=True,
-        bbox=q_bbox,
-        zorder=6,   # pastikan selalu di atas garis/marker
-    )
+    def _put_data(xd, yd, text):
+        ax.text(
+            xd, yd, text,
+            transform=ax.transData,
+            ha="center", va="center",
+            fontsize=q_fs,
+            alpha=0.8,
+            bbox=q_bbox,
+            zorder=6,
+            clip_on=True
+        )
 
     # =========================
-    # MODE 1: kuadran kotak biasa
+    # MODE 1: Kuadran kotak biasa
     # =========================
     if not trimmed_like_example:
-        x_mid = 0.5
-        y_mid = 0.5
-
-        _draw_fit_text(
-            0.25, 0.75, "Q1\nConcentrate Here",
-            _rect_axes_to_disp(0.00, y_mid, x_mid, 1.00),
-            transform=ax.transAxes
-        )
-        _draw_fit_text(
-            0.75, 0.75, "Q2\nKeep Up the Good Work",
-            _rect_axes_to_disp(x_mid, y_mid, 1.00, 1.00),
-            transform=ax.transAxes
-        )
-        _draw_fit_text(
-            0.25, 0.25, "Q3\nLow Priority",
-            _rect_axes_to_disp(0.00, 0.00, x_mid, y_mid),
-            transform=ax.transAxes
-        )
-        _draw_fit_text(
-            0.75, 0.25, "Q4\nPossible Overkill",
-            _rect_axes_to_disp(x_mid, 0.00, 1.00, y_mid),
-            transform=ax.transAxes
-        )
+        _put_axes(0.25, 0.75, "Q1\nConcentrate Here")
+        _put_axes(0.75, 0.75, "Q2\nKeep Up the Good Work")
+        _put_axes(0.25, 0.25, "Q3\nLow Priority")
+        _put_axes(0.75, 0.25, "Q4\nPossible Overkill")
         return
 
     # =========================
-    # MODE 2: diagonal + trimmed
+    # MODE 2: Dengan diagonal + trimmed
     # =========================
     x0, x1 = ax.get_xlim()
     y0, y1 = ax.get_ylim()
@@ -823,72 +812,38 @@ def _annotate_quadrants(ax, x_cut, y_cut, trimmed_like_example=False):
     def y_diag(x):
         return x + b
 
-    mx = 0.05 * (x1 - x0)
-    my = 0.05 * (y1 - y0)
+    mx = 0.06 * (x1 - x0)
+    my = 0.06 * (y1 - y0)
 
-    def _safe_rect(xa0, ya0, xa1, ya1):
-        xa0, xa1 = min(xa0, xa1), max(xa0, xa1)
-        ya0, ya1 = min(ya0, ya1), max(ya0, ya1)
-        xa0 = max(x0, xa0); xa1 = min(x1, xa1)
-        ya0 = max(y0, ya0); ya1 = min(y1, ya1)
-        return xa0, ya0, xa1, ya1
+    # ---- Q1 (kiri atas)
+    x_q1 = x0 + 0.25 * (x_cut - x0)
+    y_q1 = min(y1 - my, max(y_cut + my, y_diag(x_q1) + my))
+    _put_data(x_q1, y_q1, "Q1\nConcentrate Here")
 
-    # ---- Q2 (bawah diagonal, atas horizontal)
-    xL = x_cut + mx
-    xR = x1 - mx
-    yB = y_cut + my
-    yU = y_diag(xL) - my
+    # ---- Q3 (kiri bawah)
+    x_q3 = x0 + 0.25 * (x_cut - x0)
+    y_q3 = y0 + 0.25 * (y_cut - y0)
+    y_q3 = min(y_q3, y_diag(x_q3) - my)
+    _put_data(x_q3, y_q3, "Q3\nLow Priority")
 
-    if yU > yB:
-        xa0, ya0, xa1, ya1 = _safe_rect(xL, yB, xR, yU)
-        rect = _rect_data_to_disp(xa0, ya0, xa1, ya1)
-        _draw_fit_text((xa0 + xa1) / 2, (ya0 + ya1) / 2,
-                       "Q2\nKeep Up the Good Work",
-                       rect, ax.transData)
+    # ---- Q4 (kanan bawah)
+    x_q4 = x_cut + 0.55 * (x1 - x_cut)
+    y_q4 = y0 + 0.25 * (y_cut - y0)
+    _put_data(x_q4, y_q4, "Q4\nPossible Overkill")
+
+    # ---- Q2 (kanan atas) — SELALU dipastikan muncul
+    x_q2 = x_cut + 0.55 * (x1 - x_cut)
+    y_q2 = y_cut + 0.40 * (y1 - y_cut)
+
+    # pastikan tetap di bawah diagonal
+    if y_q2 >= y_diag(x_q2) - my:
+        y_q2 = y_diag(x_q2) - my
+
+    # jika area terlalu tipis, fallback ke axes coords
+    if y_q2 <= y_cut + my:
+        _put_axes(0.75, 0.80, "Q2\nKeep Up the Good Work")
     else:
-        # fallback: jika area Q2 terlalu tipis, taruh label pada posisi aman (axes coords)
-        _draw_fit_text(
-            0.75, 0.78,
-            "Q2\nKeep Up the Good Work",
-            _rect_axes_to_disp(0.50, 0.50, 1.00, 1.00),
-            ax.transAxes
-        )
-
-    # ---- Q3 (bawah diagonal, kiri vertikal)
-    xL = x0 + mx
-    xR = x_cut - mx
-    yB = y0 + my
-    yU = min(y_cut - my, y_diag(xL) - my)
-    if xR > xL and yU > yB:
-        xa0, ya0, xa1, ya1 = _safe_rect(xL, yB, xR, yU)
-        rect = _rect_data_to_disp(xa0, ya0, xa1, ya1)
-        _draw_fit_text((xa0+xa1)/2, (ya0+ya1)/2,
-                       "Q3\nLow Priority",
-                       rect, ax.transData)
-
-    # ---- Q1 (atas diagonal, kiri vertikal)
-    xL = x0 + mx
-    xR = x_cut - mx
-    yB = max(y_cut + my, y_diag(xR) + my)
-    yU = y1 - my
-    if xR > xL and yU > yB:
-        xa0, ya0, xa1, ya1 = _safe_rect(xL, yB, xR, yU)
-        rect = _rect_data_to_disp(xa0, ya0, xa1, ya1)
-        _draw_fit_text((xa0+xa1)/2, (ya0+ya1)/2,
-                       "Q1\nConcentrate Here",
-                       rect, ax.transData)
-
-    # ---- Q4 (bawah horizontal)
-    xL = x_cut + mx
-    xR = x1 - mx
-    yB = y0 + my
-    yU = y_cut - my
-    if xR > xL and yU > yB:
-        xa0, ya0, xa1, ya1 = _safe_rect(xL, yB, xR, yU)
-        rect = _rect_data_to_disp(xa0, ya0, xa1, ya1)
-        _draw_fit_text((xa0+xa1)/2, (ya0+ya1)/2,
-                       "Q4\nPossible Overkill",
-                       rect, ax.transData)
+        _put_data(x_q2, y_q2, "Q2\nKeep Up the Good Work")
 
 
 # =========================
@@ -900,7 +855,7 @@ def plot_ipa_items(stats, x_cut, y_cut, show_iso_diagonal=False, trimmed_quadran
     for _, r in stats.iterrows():
         if pd.isna(r["Performance_mean"]) or pd.isna(r["Importance_mean"]):
             continue
-        ax.text(r["Performance_mean"], r["Importance_mean"], r["Item"], fontsize=8)
+        ax.text(r["Performance_mean"], r["Importance_mean"], r["Item"], fontsize=PLOT_FS_POINT)
 
     x_vals = stats["Performance_mean"].dropna()
     y_vals = stats["Importance_mean"].dropna()
@@ -923,6 +878,7 @@ def plot_ipa_items(stats, x_cut, y_cut, show_iso_diagonal=False, trimmed_quadran
     ax.set_xlabel("Performance (Mean)")
     ax.set_ylabel("Importance (Mean)")
     ax.set_aspect("equal", adjustable="box")
+    ax.tick_params(labelsize=PLOT_FS_TICK)
     return fig
 
 
@@ -932,7 +888,7 @@ def plot_ipa_dimensions(dim_stats, x_cut, y_cut, show_iso_diagonal=False, trimme
     for _, r in dim_stats.iterrows():
         if pd.isna(r["Performance_mean"]) or pd.isna(r["Importance_mean"]):
             continue
-        ax.text(r["Performance_mean"], r["Importance_mean"], r["Dimension"], fontsize=9)
+        ax.text(r["Performance_mean"], r["Importance_mean"], r["Dimension"], fontsize=PLOT_FS_POINT)
 
     x_vals = dim_stats["Performance_mean"].dropna()
     y_vals = dim_stats["Importance_mean"].dropna()
@@ -955,6 +911,7 @@ def plot_ipa_dimensions(dim_stats, x_cut, y_cut, show_iso_diagonal=False, trimme
     ax.set_xlabel("Performance (Mean)")
     ax.set_ylabel("Importance (Mean)")
     ax.set_aspect("equal", adjustable="box")
+    ax.tick_params(labelsize=PLOT_FS_TICK)
     return fig
 
 

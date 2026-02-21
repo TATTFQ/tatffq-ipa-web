@@ -1567,31 +1567,6 @@ def render_admin_dashboard():
 
             st.divider()
 
-            st.subheader("Cut-off (Data-centered) — Dimensions")
-            c1, c2 = st.columns(2)
-            with c1:
-                st.metric("Performance cut-off (mean dim)", f"{dx_cut:.3f}")
-            with c2:
-                st.metric("Importance cut-off (mean dim)", f"{dy_cut:.3f}")
-
-            st.subheader("Statistik per dimensi (min/max/mean) + GAP(P-I) + Kuadran (Versi 1 & 2)")
-            dim_show = _round_df_numeric(dim_stats, 2)
-            ordered_cols = [
-                "Dimension", "Dimension_name",
-                "Performance_min", "Performance_max", "Performance_mean",
-                "Importance_min", "Importance_max", "Importance_mean",
-                "Gap_mean(P-I)",
-                "Quadrant_v1", "Quadrant_v2",
-            ]
-            # kalau ingin n_items tetap tampil, taruh sebelum gap atau setelah dimension_name (opsional)
-            if "n_items" in dim_show.columns:
-                ordered_cols.insert(2, "n_items")
-
-            ordered_cols = [c for c in ordered_cols if c in dim_show.columns]
-            dim_show = dim_show.reindex(columns=ordered_cols + [c for c in dim_show.columns if c not in ordered_cols])
-
-            st.dataframe(dim_show.sort_values("Gap_mean(P-I)", ascending=True), use_container_width=True)
-
             # ✅ VERSI 1: tanpa diagonal
             st.subheader("Plot IPA (Data-centered) — Items (Versi 1: Tanpa diagonal)")
             fig1 = plot_ipa_items(
@@ -1621,8 +1596,29 @@ def render_admin_dashboard():
             with c2:
                 st.metric("Importance cut-off (mean dim)", f"{dy_cut:.3f}")
 
-            st.subheader("Statistik per dimensi (min/max/mean) + GAP(P-I) + Kuadran")
+            st.subheader("Cut-off (Data-centered) — Dimensions")
+            c1, c2 = st.columns(2)
+            with c1:
+                st.metric("Performance cut-off (mean dim)", f"{dx_cut:.3f}")
+            with c2:
+                st.metric("Importance cut-off (mean dim)", f"{dy_cut:.3f}")
+
+            st.subheader("Statistik per dimensi (min/max/mean) + GAP(P-I) + Kuadran (Versi 1 & 2)")
             dim_show = _round_df_numeric(dim_stats, 2)
+            ordered_cols = [
+                "Dimension", "Dimension_name",
+                "Performance_min", "Performance_max", "Performance_mean",
+                "Importance_min", "Importance_max", "Importance_mean",
+                "Gap_mean(P-I)",
+                "Quadrant_v1", "Quadrant_v2",
+            ]
+            # kalau ingin n_items tetap tampil, taruh sebelum gap atau setelah dimension_name (opsional)
+            if "n_items" in dim_show.columns:
+                ordered_cols.insert(2, "n_items")
+
+            ordered_cols = [c for c in ordered_cols if c in dim_show.columns]
+            dim_show = dim_show.reindex(columns=ordered_cols + [c for c in dim_show.columns if c not in ordered_cols])
+
             st.dataframe(dim_show.sort_values("Gap_mean(P-I)", ascending=True), use_container_width=True)
 
             # ✅ VERSI 1: tanpa diagonal

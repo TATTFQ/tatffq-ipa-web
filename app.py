@@ -742,55 +742,37 @@ def _plot_quadrant_lines(ax, x_cut, y_cut, trimmed_like_example=False):
 
 
 # =========================
-# QUADRANT LABELS (UPDATED - SMALLER FONT)
+# QUADRANT LABELS (UPDATED - ALWAYS INSIDE PLOT)
 # =========================
 def _annotate_quadrants(ax, x_cut, y_cut, trimmed_like_example=False):
     """
-    Menulis nama kuadran pada area plot.
-    Font dibuat kecil dan ringan agar tidak menghalangi item/dimensi.
+    Menulis nama kuadran yang selalu berada DI DALAM area plot
+    (pakai koordinat relatif axes: ax.transAxes), sehingga tidak pernah keluar batas.
     """
-    x0, x1 = ax.get_xlim()
-    y0, y1 = ax.get_ylim()
-
-    def put(x, y, text):
+    def put_axes(xa, ya, text):
         ax.text(
-            x, y, text,
+            xa, ya, text,
+            transform=ax.transAxes,   # ✅ kunci: koordinat relatif 0..1
             ha="center",
             va="center",
-            fontsize=8,              # 🔽 lebih kecil
-            fontweight="normal",     # 🔽 tidak bold
-            alpha=0.75,              # 🔽 sedikit transparan
+            fontsize=8,
+            fontweight="normal",
+            alpha=0.75,
+            clip_on=True,
             bbox=dict(
                 boxstyle="round,pad=0.15",
-                alpha=0.08,          # 🔽 box sangat transparan
+                alpha=0.08,
                 edgecolor="none"
             )
         )
 
-    q1_x = (x0 + x_cut) / 2
-    q1_y = (y_cut + y1) / 2
-
-    q2_x = (x_cut + x1) / 2
-    q2_y = (y_cut + y1) / 2
-
-    q3_x = (x0 + x_cut) / 2
-    q3_y = (y0 + y_cut) / 2
-
-    q4_x = (x_cut + x1) / 2
-    q4_y = (y0 + y_cut) / 2
-
-    if trimmed_like_example:
-        dx = 0.03 * (x1 - x0)
-        dy = 0.03 * (y1 - y0)
-        q1_x -= dx; q1_y += dy
-        q2_x += dx; q2_y += dy
-        q3_x -= dx; q3_y -= dy
-        q4_x += dx; q4_y -= dy
-
-    put(q1_x, q1_y, "Q1\nConcentrate Here")
-    put(q2_x, q2_y, "Q2\nKeep Up the Good Work")
-    put(q3_x, q3_y, "Q3\nLow Priority")
-    put(q4_x, q4_y, "Q4\nPossible Overkill")
+    # Posisi label di dalam kotak plot (0..1).
+    # trimmed_like_example dipertahankan supaya signature tidak berubah,
+    # tetapi posisi tetap aman di dalam plot.
+    put_axes(0.23, 0.78, "Q1\nConcentrate Here")
+    put_axes(0.77, 0.78, "Q2\nKeep Up the Good Work")
+    put_axes(0.23, 0.22, "Q3\nLow Priority")
+    put_axes(0.77, 0.22, "Q4\nPossible Overkill")
 
 
 # =========================

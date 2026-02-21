@@ -760,36 +760,105 @@ def _plot_quadrant_lines(ax, x_cut, y_cut, trimmed_like_example=False):
 # =========================
 
 def _annotate_quadrants(ax, x_cut, y_cut, trimmed_like_example=False):
+    """
+    Label kuadran yang:
+    - Full text (Keep Up the Good Work, dst.)
+    - Untuk mode diagonal+trimmed: Q2 dipastikan berada
+      DI BAWAH diagonal dan DI ATAS garis horizontal (y_cut).
+    """
     q_fs = PLOT_FS_QUAD
-    q_bbox = dict(boxstyle="round,pad=0.12", alpha=0.06, edgecolor="none")
+    q_bbox = dict(boxstyle="round,pad=0.18", alpha=0.10, edgecolor="none")
 
-    def _put(xa, ya, text):
+    def _put_axes(xa, ya, text):
         ax.text(
             xa, ya, text,
             transform=ax.transAxes,
-            ha="center",
-            va="center",
+            ha="center", va="center",
             fontsize=q_fs,
             bbox=q_bbox,
             zorder=6,
             clip_on=True,
         )
 
-    txt_q1 = "Q1\nConcentrate"
-    txt_q2 = "Q2\nKeep Up"
-    txt_q3 = "Q3\nLow Priority"
-    txt_q4 = "Q4\nOverkill"
+    def _put_data(xd, yd, text):
+        ax.text(
+            xd, yd, text,
+            ha="center", va="center",
+            fontsize=q_fs,
+            bbox=q_bbox,
+            zorder=6,
+            clip_on=True,
+        )
 
+    # Full labels
+    LQ1 = "Q1\nConcentrate Here"
+    LQ2 = "Q2\nKeep Up the Good Work"
+    LQ3 = "Q3\nLow Priority"
+    LQ4 = "Q4\nPossible Overkill"
+
+    # =========================
+    # MODE 1: Kuadran kotak biasa (tanpa diagonal)
+    # =========================
     if not trimmed_like_example:
-        _put(0.25, 0.75, txt_q1)
-        _put(0.75, 0.75, txt_q2)
-        _put(0.25, 0.25, txt_q3)
-        _put(0.75, 0.25, txt_q4)
+        _put_axes(0.25, 0.75, LQ1)
+        _put_axes(0.75, 0.75, LQ2)
+        _put_axes(0.25, 0.25, LQ3)
+        _put_axes(0.75, 0.25, LQ4)
+        return
+
+    # =========================
+    # MODE 2: Dengan diagonal + trimmed
+    # (pakai data coords + constraint)
+    # =========================
+    x0, x1 = ax.get_xlim()
+    y0, y1 = ax.get_ylim()
+
+    # diagonal 45° lewat (x_cut, y_cut): y = x + b
+    b = y_cut - x_cut
+    def y_diag(x):
+        return x + b
+
+    mx = 0.06 * (x1 - x0)
+    my = 0.06 * (y1 - y0)
+
+    # ---- Q1 (kiri-atas): di atas horizontal dan di atas diagonal (area kiri-atas)
+    x_q1 = x0 + 0.28 * (x_cut - x0)
+    y_q1 = max(y_cut + my, y_diag(x_q1) + my)
+    y_q1 = min(y_q1, y1 - my)
+    _put_data(x_q1, y_q1, LQ1)
+
+    # ---- Q3 (kiri-bawah): di bawah horizontal dan di bawah diagonal
+    x_q3 = x0 + 0.28 * (x_cut - x0)
+    y_q3 = y0 + 0.22 * (y_cut - y0)
+    y_q3 = min(y_q3, y_diag(x_q3) - my)
+    y_q3 = max(y0 + my, y_q3)
+    _put_data(x_q3, y_q3, LQ3)
+
+    # ---- Q4 (kanan-bawah): di bawah horizontal (tidak perlu constraint diagonal)
+    x_q4 = x_cut + 0.62 * (x1 - x_cut)
+    y_q4 = y0 + 0.22 * (y_cut - y0)
+    y_q4 = max(y0 + my, y_q4)
+    _put_data(x_q4, y_q4, LQ4)
+
+    # ---- Q2 (kanan-atas): WAJIB di atas horizontal DAN di bawah diagonal
+    x_q2 = x_cut + 0.62 * (x1 - x_cut)
+
+    # target awal (agak di atas y_cut)
+    y_q2 = y_cut + 0.40 * (y1 - y_cut)
+
+    # paksa: di bawah diagonal
+    y_max_allowed = y_diag(x_q2) - my
+    y_q2 = min(y_q2, y_max_allowed)
+
+    # paksa: di atas horizontal
+    y_q2 = max(y_q2, y_cut + my)
+
+    # kalau area terlalu sempit (diagonal terlalu dekat dengan y_cut),
+    # fallback ke axes coords yang aman (kanan-atas tapi tidak nyebrang diagonal)
+    if y_q2 >= y_max_allowed or y_max_allowed <= (y_cut + my * 1.2):
+        _put_axes(0.78, 0.78, LQ2)
     else:
-        _put(0.18, 0.68, txt_q1)
-        _put(0.78, 0.72, txt_q2)
-        _put(0.18, 0.18, txt_q3)
-        _put(0.72, 0.20, txt_q4)
+        _put_data(x_q2, y_q2, LQ2)
 
 
 # =========================

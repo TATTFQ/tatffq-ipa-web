@@ -592,33 +592,25 @@ def compute_stats_and_ipa(df_flat: pd.DataFrame):
         return "IV - Possible Overkill"
 
     # --- Versi 2 (dengan diagonal): aturan sesuai definisi user ---
-# Q1: semua titik DI ATAS diagonal
-# Q2: DI BAWAH diagonal & DI ATAS garis horizontal (y_cut)
-# Q3: DI BAWAH diagonal & DI KIRI garis vertikal (x_cut)
-# Q4: DI BAWAH diagonal & DI BAWAH horizontal (y_cut) & DI KANAN vertikal (x_cut)
-b = y_cut - x_cut
+    # Q1: semua titik DI ATAS diagonal
+    # Q2: DI BAWAH diagonal & DI ATAS garis horizontal (y_cut)
+    # Q3: DI BAWAH diagonal & DI KIRI garis vertikal (x_cut)
+    # Q4: DI BAWAH diagonal & DI BAWAH horizontal (y_cut) & DI KANAN vertikal (x_cut)
+    b = y_cut - x_cut
 
-def quadrant_v2(x: float, y: float) -> str:
-    if pd.isna(x) or pd.isna(y):
-        return "NA"
+    def quadrant_v2(x: float, y: float) -> str:
+        if pd.isna(x) or pd.isna(y):
+            return "NA"
 
-    y_diag = x + b
+        y_diag = x + b
 
-    # Q1: above diagonal
-    if y >= y_diag:
-        return "I - Concentrate Here"
-
-    # below diagonal:
-    # Q2: above horizontal
-    if y >= y_cut:
-        return "II - Keep Up the Good Work"
-
-    # Q3: left of vertical
-    if x < x_cut:
-        return "III - Low Priority"
-
-    # Q4: remaining (below diag, below horizontal, right of vertical)
-    return "IV - Possible Overkill"
+        if y >= y_diag:
+            return "I - Concentrate Here"
+        if y >= y_cut:
+            return "II - Keep Up the Good Work"
+        if x < x_cut:
+            return "III - Low Priority"
+        return "IV - Possible Overkill"
 
     stats["Quadrant_v1"] = [quadrant_v1(x, y) for x, y in zip(stats["Performance_mean"], stats["Importance_mean"])]
     stats["Quadrant_v2"] = [quadrant_v2(x, y) for x, y in zip(stats["Performance_mean"], stats["Importance_mean"])]

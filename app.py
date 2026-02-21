@@ -712,9 +712,9 @@ def _plot_iso_diagonal(ax, x_cut, y_cut, xlim, ylim, with_endpoints=True):
         pts_sorted = sorted(pts, key=lambda t: t[0])
         pA, pB = pts_sorted[0], pts_sorted[-1]
         if with_endpoints:
-            ax.plot([pA[0], pB[0]], [pA[1], pB[1]], linestyle="-", linewidth=2.2, marker="o")
+            ax.plot([pA[0], pB[0]], [pA[1], pB[1]], linestyle="-", linewidth=2.2, marker="o", zorder=2)
         else:
-            ax.plot([pA[0], pB[0]], [pA[1], pB[1]], linestyle="-", linewidth=2.2)
+            ax.plot([pA[0], pB[0]], [pA[1], pB[1]], linestyle="-", linewidth=2.2, zorder=2)
     else:
         ax.plot([x0, x1], [y0, y1], linestyle="-", linewidth=2.2)
 
@@ -731,14 +731,12 @@ def _plot_quadrant_lines(ax, x_cut, y_cut, trimmed_like_example=False):
     y0, y1 = ax.get_ylim()
 
     if not trimmed_like_example:
-        ax.axvline(x_cut, linewidth=1.5)
-        ax.axhline(y_cut, linewidth=1.5)
+        ax.axvline(x_cut, linewidth=1.5, zorder=2)
+        ax.axhline(y_cut, linewidth=1.5, zorder=2)
         return
 
-    # vertikal: dari bawah -> y_cut
-    ax.plot([x_cut, x_cut], [y0, y_cut], linewidth=2.2, marker="o", markevery=[1])
-    # horizontal: dari x_cut -> kanan
-    ax.plot([x_cut, x1], [y_cut, y_cut], linewidth=2.2, marker="o", markevery=[1])
+    ax.plot([x_cut, x_cut], [y0, y_cut], linewidth=2.2, marker="o", markevery=[1], zorder=2)
+    ax.plot([x_cut, x1], [y_cut, y_cut], linewidth=2.2, marker="o", markevery=[1], zorder=2)
 
 
 # =========================
@@ -769,45 +767,22 @@ def _annotate_quadrants(ax, x_cut, y_cut, trimmed_like_example=False):
         return min(x0, x1), min(y0, y1), max(x0, x1), max(y0, y1)
 
     # --- Helper: shrink-to-fit text ---
-    def _draw_fit_text(x, y, text, rect_disp, transform):
-        fig.canvas.draw()
-        renderer = fig.canvas.get_renderer()
+   def _draw_fit_text(x, y, text, rect_disp, transform):
+    # Font label kuadran dibuat SERAGAM dan paling kecil
+    q_fs = 4
+    q_bbox = dict(boxstyle="round,pad=0.08", alpha=0.06, edgecolor="none")
 
-        bbox_in = ax.get_window_extent().transformed(fig.dpi_scale_trans.inverted())
-        min_pt = min(bbox_in.width, bbox_in.height) * 72.0
-        base_fs = int(round(0.028 * min_pt))
-        base_fs = max(4, min(6, base_fs))  # lebih kecil dari versi lama
-
-        rx0, ry0, rx1, ry1 = rect_disp
-        pad_px = 6
-
-        q_bbox = dict(boxstyle="round,pad=0.08", alpha=0.06, edgecolor="none")
-
-        t = ax.text(
-            x, y, text,
-            transform=transform,
-            ha="center", va="center",
-            fontsize=base_fs,
-            fontweight="normal",
-            alpha=0.75,
-            clip_on=True,
-            bbox=q_bbox,
-        )
-
-        for fs in range(base_fs, 3, -1):
-            t.set_fontsize(fs)
-            fig.canvas.draw()
-            bb = t.get_window_extent(renderer=renderer)
-            fits = (
-                (bb.x0 >= rx0 + pad_px) and
-                (bb.x1 <= rx1 - pad_px) and
-                (bb.y0 >= ry0 + pad_px) and
-                (bb.y1 <= ry1 - pad_px)
-            )
-            if fits:
-                return
-
-        t.set_fontsize(4)
+    ax.text(
+        x, y, text,
+        transform=transform,
+        ha="center", va="center",
+        fontsize=q_fs,
+        fontweight="normal",
+        alpha=0.75,
+        clip_on=True,
+        bbox=q_bbox,
+        zorder=6,   # pastikan selalu di atas garis/marker
+    )
 
     # =========================
     # MODE 1: kuadran kotak biasa
@@ -863,12 +838,21 @@ def _annotate_quadrants(ax, x_cut, y_cut, trimmed_like_example=False):
     xR = x1 - mx
     yB = y_cut + my
     yU = y_diag(xL) - my
+
     if yU > yB:
         xa0, ya0, xa1, ya1 = _safe_rect(xL, yB, xR, yU)
         rect = _rect_data_to_disp(xa0, ya0, xa1, ya1)
-        _draw_fit_text((xa0+xa1)/2, (ya0+ya1)/2,
+        _draw_fit_text((xa0 + xa1) / 2, (ya0 + ya1) / 2,
                        "Q2\nKeep Up the Good Work",
                        rect, ax.transData)
+    else:
+        # fallback: jika area Q2 terlalu tipis, taruh label pada posisi aman (axes coords)
+        _draw_fit_text(
+            0.75, 0.78,
+            "Q2\nKeep Up the Good Work",
+            _rect_axes_to_disp(0.50, 0.50, 1.00, 1.00),
+            ax.transAxes
+        )
 
     # ---- Q3 (bawah diagonal, kiri vertikal)
     xL = x0 + mx

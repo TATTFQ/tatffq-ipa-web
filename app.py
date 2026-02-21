@@ -258,8 +258,6 @@ LAST_USE_OPTS = [
     "Dalam 1 tahun terakhir",
     "Lebih dari 1 tahun yang lalu",
 ]
-
-# --- Platform Telemedicine yang akan dinilai (dropdown) ---
 PLATFORM_OPTS = ["", "Alodokter", "Good Doctor", "Halodoc"]
 
 # =========================
@@ -323,7 +321,6 @@ def _go_home():
 
 
 def _new_respondent_session():
-    # step: 0=profil, 1=performance, 2=importance
     st.session_state.step = 0
     st.session_state.perf = {}
     st.session_state.imp = {}
@@ -680,6 +677,9 @@ def compute_dimension_stats_and_ipa(df_flat: pd.DataFrame):
 
 
 def _plot_iso_diagonal(ax, x_cut, y_cut, xlim, ylim):
+    """
+    Garis diagonal 45°: y = x + b, melewati titik (x_cut, y_cut) -> b = y_cut - x_cut
+    """
     b = y_cut - x_cut
     x0, x1 = xlim
     y0 = x0 + b
@@ -688,9 +688,9 @@ def _plot_iso_diagonal(ax, x_cut, y_cut, xlim, ylim):
 
 
 # =========================
-# IPA PLOTS (DIPERKECIL UNTUK DESKTOP)
+# IPA PLOTS
 # =========================
-def plot_ipa_items(stats, x_cut, y_cut, show_iso_diagonal=False):
+def plot_ipa_items(stats, x_cut, y_cut, show_iso_diagonal=False, title_suffix=""):
     fig, ax = plt.subplots(figsize=(6.8, 4.8))
     ax.scatter(stats["Performance_mean"], stats["Importance_mean"])
     for _, r in stats.iterrows():
@@ -710,17 +710,15 @@ def plot_ipa_items(stats, x_cut, y_cut, show_iso_diagonal=False):
 
     if show_iso_diagonal:
         _plot_iso_diagonal(ax, x_cut, y_cut, ax.get_xlim(), ax.get_ylim())
-        ax.set_title("IPA Matrix (Data-centered) — Alternatif (Items)")
-    else:
-        ax.set_title("IPA Matrix (Data-centered) — Items")
 
+    ax.set_title(f"IPA Matrix (Data-centered) — Items{title_suffix}")
     ax.set_xlabel("Performance (Mean)")
     ax.set_ylabel("Importance (Mean)")
     ax.set_aspect("equal", adjustable="box")
     return fig
 
 
-def plot_ipa_dimensions(dim_stats, x_cut, y_cut, show_iso_diagonal=False):
+def plot_ipa_dimensions(dim_stats, x_cut, y_cut, show_iso_diagonal=False, title_suffix=""):
     fig, ax = plt.subplots(figsize=(6.8, 4.8))
     ax.scatter(dim_stats["Performance_mean"], dim_stats["Importance_mean"])
     for _, r in dim_stats.iterrows():
@@ -740,10 +738,8 @@ def plot_ipa_dimensions(dim_stats, x_cut, y_cut, show_iso_diagonal=False):
 
     if show_iso_diagonal:
         _plot_iso_diagonal(ax, x_cut, y_cut, ax.get_xlim(), ax.get_ylim())
-        ax.set_title("IPA Matrix (Data-centered) — Alternatif (Dimensions)")
-    else:
-        ax.set_title("IPA Matrix (Data-centered) — Dimensions")
 
+    ax.set_title(f"IPA Matrix (Data-centered) — Dimensions{title_suffix}")
     ax.set_xlabel("Performance (Mean)")
     ax.set_ylabel("Importance (Mean)")
     ax.set_aspect("equal", adjustable="box")
@@ -758,22 +754,8 @@ def _round_df_numeric(df_in: pd.DataFrame, decimals: int = 2) -> pd.DataFrame:
     return df_out
 
 
-def _build_quadrant_table_from_stats(stats_df: pd.DataFrame, label_col: str, quad_col: str = "Quadrant") -> pd.DataFrame:
-    quad_order = [
-        "I - Concentrate Here",
-        "II - Keep Up the Good Work",
-        "III - Low Priority",
-        "IV - Possible Overkill",
-    ]
-    rows = []
-    for q in quad_order:
-        labels = stats_df.loc[stats_df[quad_col] == q, label_col].astype(str).tolist()
-        rows.append({"Quadrant": q, "Items": ", ".join(labels) if labels else ""})
-    return pd.DataFrame(rows)
-
-
 # =========================
-# APP STATE + ROUTING (HOME / RESPONDEN / ADMIN)
+# APP STATE + ROUTING
 # =========================
 if "view" not in st.session_state:
     st.session_state.view = "home"
@@ -934,7 +916,7 @@ def render_respondent():
         _go_home()
         st.rerun()
 
-    step = st.session_state.get("step", 0)
+    step = st.session_state.get("step", 0)  # 0 profil, 1 perf, 2 imp
     st.progress(1 / 3 if step == 0 else (2 / 3 if step == 1 else 1.0))
     c1, c2, c3 = st.columns(3)
     with c1:
@@ -1238,15 +1220,22 @@ def render_admin_dashboard():
 
     st.divider()
 
+    # =========================
+    # LOAD + FILTER PLATFORM + FILTER PERIODE
+    # =========================
     df_all = load_all_responses()
     df = df_all.copy()
 
+    # Filter platform sesuai role admin
     if scope_platform:
         if "meta_platform" in df.columns:
             df = df[df["meta_platform"].fillna("").astype(str).str.strip() == scope_platform].copy()
         else:
             df = df.iloc[0:0].copy()
 
+    # =========================
+    # FILTER PERIODE
+    # =========================
     st.subheader("Filter Periode Ringkasan")
     st.caption("Filter ini mempengaruhi semua tab (Ringkasan & IPA, Raw Data, Kuadran, Profil & Durasi).")
 
@@ -1332,10 +1321,15 @@ def render_admin_dashboard():
             stats_show = _round_df_numeric(stats, 2)
             st.dataframe(stats_show.sort_values("Gap_mean(P-I)", ascending=True), use_container_width=True)
 
-            # ✅ PERUBAHAN: tampilkan diagonal alternatif (45° lewat titik mean global)
-            st.subheader("Plot IPA (Data-centered) — Items")
-            fig = plot_ipa_items(stats, x_cut, y_cut, show_iso_diagonal=True)
-            st.pyplot(fig, use_container_width=True)
+            # ✅ VERSI 1: tanpa diagonal (yang lama tetap ada)
+            st.subheader("Plot IPA (Data-centered) — Items (Versi 1: Tanpa diagonal)")
+            fig1 = plot_ipa_items(stats, x_cut, y_cut, show_iso_diagonal=False, title_suffix=" (Tanpa diagonal)")
+            st.pyplot(fig1, use_container_width=True)
+
+            # ✅ VERSI 2: dengan diagonal 45°
+            st.subheader("Plot IPA (Data-centered) — Items (Versi 2: Dengan diagonal 45°)")
+            fig2 = plot_ipa_items(stats, x_cut, y_cut, show_iso_diagonal=True, title_suffix=" (Dengan diagonal)")
+            st.pyplot(fig2, use_container_width=True)
 
             st.divider()
 
@@ -1350,10 +1344,15 @@ def render_admin_dashboard():
             dim_show = _round_df_numeric(dim_stats, 2)
             st.dataframe(dim_show.sort_values("Gap_mean(P-I)", ascending=True), use_container_width=True)
 
-            # ✅ PERUBAHAN: tampilkan diagonal alternatif (45° lewat titik mean global dimensi)
-            st.subheader("Plot IPA (Data-centered) — Dimensions")
-            fig_dim = plot_ipa_dimensions(dim_stats, dx_cut, dy_cut, show_iso_diagonal=True)
-            st.pyplot(fig_dim, use_container_width=True)
+            # ✅ VERSI 1: tanpa diagonal
+            st.subheader("Plot IPA (Data-centered) — Dimensions (Versi 1: Tanpa diagonal)")
+            figd1 = plot_ipa_dimensions(dim_stats, dx_cut, dy_cut, show_iso_diagonal=False, title_suffix=" (Tanpa diagonal)")
+            st.pyplot(figd1, use_container_width=True)
+
+            # ✅ VERSI 2: dengan diagonal 45°
+            st.subheader("Plot IPA (Data-centered) — Dimensions (Versi 2: Dengan diagonal 45°)")
+            figd2 = plot_ipa_dimensions(dim_stats, dx_cut, dy_cut, show_iso_diagonal=True, title_suffix=" (Dengan diagonal)")
+            st.pyplot(figd2, use_container_width=True)
 
     with tab2:
         st.subheader("Raw responses (flattened)")

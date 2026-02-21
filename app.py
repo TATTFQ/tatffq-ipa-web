@@ -155,11 +155,13 @@ ITEMS = [
 ITEM_CODES = [code for _, code, _ in ITEMS]
 ITEM_TEXT = {code: text_ for _, code, text_ in ITEMS}
 
+
 def group_by_dim(items):
     grouped = {}
     for dim, code, text_ in items:
         grouped.setdefault(dim, []).append((code, text_))
     return grouped
+
 
 DIMS = group_by_dim(ITEMS)
 
@@ -266,6 +268,7 @@ PLATFORM_OPTS = ["", "Alodokter", "Good Doctor", "Halodoc"]
 def _request_scroll_to_top():
     st.session_state._scroll_to_top = True
 
+
 def _run_scroll_to_top_if_requested():
     if st.session_state.get("_scroll_to_top", False):
         components.html(
@@ -286,16 +289,19 @@ def _run_scroll_to_top_if_requested():
         )
         st.session_state._scroll_to_top = False
 
+
 def _ensure_default_radio_state():
     for code in ITEM_CODES:
         st.session_state.setdefault(f"perf_{code}", 1)
         st.session_state.setdefault(f"imp_{code}", 1)
+
 
 def _sync_dict_from_widget(prefix: str) -> dict:
     out = {}
     for code in ITEM_CODES:
         out[code] = int(st.session_state.get(f"{prefix}_{code}", 1))
     return out
+
 
 def _hydrate_widget_state_from_answers(prefix: str, answers: dict, force: bool = False):
     answers = answers or {}
@@ -305,13 +311,16 @@ def _hydrate_widget_state_from_answers(prefix: str, answers: dict, force: bool =
         if force or key not in st.session_state:
             st.session_state[key] = desired
 
+
 def _enter_step(step: int):
     st.session_state.step = step
     st.session_state._enter_step = True
 
+
 def _go_home():
     st.session_state.view = "home"
     _request_scroll_to_top()
+
 
 def _new_respondent_session():
     # step: 0=profil, 1=performance, 2=importance
@@ -334,6 +343,7 @@ def _new_respondent_session():
         "telemedicine_last_use": "",
     }
     _request_scroll_to_top()
+
 
 def _reset_survey_state(go_home: bool = False):
     # reset semua untuk responden
@@ -362,23 +372,28 @@ def _reset_survey_state(go_home: bool = False):
     if go_home:
         _go_home()
 
+
 def _request_submit_confirmation(meta: dict):
     st.session_state.pending_meta = meta or {}
     st.session_state.confirm_submit = True
 
+
 def _cancel_submit_confirmation():
     st.session_state.confirm_submit = False
     _request_scroll_to_top()
+
 
 # =========================
 # DB helpers
 # =========================
 def insert_response(respondent_code, meta, perf_dict, imp_dict):
     try:
-        stmt = text("""
+        stmt = text(
+            """
             INSERT INTO responses (respondent_code, meta, performance, importance)
             VALUES (:respondent_code, :meta, :performance, :importance)
-        """).bindparams(
+        """
+        ).bindparams(
             bindparam("meta", type_=JSONB),
             bindparam("performance", type_=JSONB),
             bindparam("importance", type_=JSONB),
@@ -398,6 +413,7 @@ def insert_response(respondent_code, meta, perf_dict, imp_dict):
         st.error("Gagal menyimpan ke database. Detail error:")
         st.exception(e)
         st.stop()
+
 
 def _confirm_and_submit():
     # ambil jawaban terakhir importance
@@ -441,16 +457,19 @@ def _confirm_and_submit():
     st.session_state["flash_success"] = "Terima kasih! Jawaban Anda telah tersimpan."
     _reset_survey_state(go_home=True)
 
+
 def load_all_responses(limit=5000):
     try:
         with engine.begin() as conn:
             rows = conn.execute(
-                text("""
+                text(
+                    """
                     SELECT id, created_at, respondent_code, meta, performance, importance
                     FROM responses
                     ORDER BY created_at DESC
                     LIMIT :limit
-                """),
+                """
+                ),
                 {"limit": limit},
             ).fetchall()
     except Exception as e:
@@ -491,6 +510,7 @@ def load_all_responses(limit=5000):
 
     return df
 
+
 def delete_all_responses():
     try:
         with engine.begin() as conn:
@@ -500,15 +520,18 @@ def delete_all_responses():
         st.exception(e)
         st.stop()
 
+
 def _cancel_delete_all():
     st.session_state.confirm_delete_all = False
     st.session_state.delete_confirm_text = ""
+
 
 def _confirm_delete_all():
     delete_all_responses()
     st.session_state.confirm_delete_all = False
     st.session_state.delete_confirm_text = ""
     st.session_state.delete_all_done = True
+
 
 # =========================
 # STATS + IPA
@@ -563,6 +586,7 @@ def compute_stats_and_ipa(df_flat: pd.DataFrame):
     quad_lists = {q: stats.loc[stats["Quadrant"] == q, "Item"].tolist() for q in quad_order}
 
     return stats, x_cut, y_cut, quad_lists
+
 
 def compute_dimension_stats_and_ipa(df_flat: pd.DataFrame):
     if df_flat is None or df_flat.empty:
@@ -642,12 +666,14 @@ def compute_dimension_stats_and_ipa(df_flat: pd.DataFrame):
 
     return dim_stats, x_cut, y_cut, quad_lists
 
+
 def _plot_iso_diagonal(ax, x_cut, y_cut, xlim, ylim):
     b = y_cut - x_cut
     x0, x1 = xlim
     y0 = x0 + b
     y1 = x1 + b
     ax.plot([x0, x1], [y0, y1], linestyle="--", linewidth=1.5)
+
 
 def plot_ipa_items(stats, x_cut, y_cut, show_iso_diagonal=False):
     fig, ax = plt.subplots(figsize=(9, 6))
@@ -678,6 +704,7 @@ def plot_ipa_items(stats, x_cut, y_cut, show_iso_diagonal=False):
     ax.set_aspect("equal", adjustable="box")
     return fig
 
+
 def plot_ipa_dimensions(dim_stats, x_cut, y_cut, show_iso_diagonal=False):
     fig, ax = plt.subplots(figsize=(9, 6))
     ax.scatter(dim_stats["Performance_mean"], dim_stats["Importance_mean"])
@@ -707,12 +734,14 @@ def plot_ipa_dimensions(dim_stats, x_cut, y_cut, show_iso_diagonal=False):
     ax.set_aspect("equal", adjustable="box")
     return fig
 
+
 def _round_df_numeric(df_in: pd.DataFrame, decimals: int = 2) -> pd.DataFrame:
     df_out = df_in.copy()
     num_cols = df_out.select_dtypes(include=["number"]).columns
     if len(num_cols) > 0:
         df_out[num_cols] = df_out[num_cols].round(decimals)
     return df_out
+
 
 def _build_quadrant_table_from_stats(stats_df: pd.DataFrame, label_col: str, quad_col: str = "Quadrant") -> pd.DataFrame:
     quad_order = [
@@ -726,6 +755,7 @@ def _build_quadrant_table_from_stats(stats_df: pd.DataFrame, label_col: str, qua
         labels = stats_df.loc[stats_df[quad_col] == q, label_col].astype(str).tolist()
         rows.append({"Quadrant": q, "Items": ", ".join(labels) if labels else ""})
     return pd.DataFrame(rows)
+
 
 # =========================
 # APP STATE + ROUTING (HOME / RESPONDEN / ADMIN)
@@ -750,6 +780,7 @@ if "admin_platform_scope" not in st.session_state:
 _run_scroll_to_top_if_requested()
 _ensure_default_radio_state()
 
+
 def render_home():
     # =========================
     # STYLE (CSS)
@@ -757,21 +788,23 @@ def render_home():
     st.markdown(
         """
         <style>
+        /* Page padding */
         .block-container { padding-top: 2.2rem; padding-bottom: 2rem; }
 
+        /* Hero title */
         .hero-title {
             font-size: 2.6rem;
             font-weight: 800;
             line-height: 1.12;
             margin-bottom: .4rem;
         }
-
         .hero-subtitle {
             font-size: 1.05rem;
             opacity: .85;
             margin-bottom: 1.1rem;
         }
 
+        /* Cards */
         .card {
             border: 1px solid rgba(255,255,255,0.08);
             background: rgba(255,255,255,0.03);
@@ -779,18 +812,17 @@ def render_home():
             padding: 18px 18px 14px 18px;
             box-shadow: 0 6px 22px rgba(0,0,0,0.10);
         }
-
         .card h3 {
             margin: 0 0 .25rem 0;
             font-size: 1.25rem;
         }
-
         .card p {
             margin: 0;
             opacity: .85;
             font-size: .96rem;
         }
 
+        /* Make buttons bigger */
         div.stButton > button {
             height: 3.05rem;
             border-radius: 14px;
@@ -798,6 +830,7 @@ def render_home():
             width: 100%;
         }
 
+        /* Footer */
         .footer {
             opacity: .7;
             font-size: .9rem;
@@ -809,37 +842,35 @@ def render_home():
     )
 
     # =========================
-    # HERO
+    # HERO (Title + Subtitle)
     # =========================
     st.markdown(
         """
-        <div class="hero-title">
-        Telemedicine Application Task–Technology Fit Questionnaire (TATTFQ)
-        </div>
+        <div class="hero-title">Telemedicine Application Task–Technology Fit Questionnaire (TATTFQ)</div>
         <div class="hero-subtitle">
-        Survei singkat untuk menilai task-technology fit aplikasi telemedicine dari perspektif dokter.
+            Survei singkat untuk menilai task-technology fit aplikasi telemedicine dari perspektif dokter.
         </div>
         """,
         unsafe_allow_html=True
     )
 
     # =========================
-    # HERO IMAGE (lebih kecil)
+    # HERO IMAGE (via URL) — diperkecil (tidak full width)
     # =========================
     HERO_IMG_URL = "https://images.unsplash.com/photo-1580281657527-47f249e8f8a3?auto=format&fit=crop&w=1600&q=80"
-
-    # dibuat lebih kecil (tidak full width)
-    st.image(HERO_IMG_URL, width=850)
+    st.image(HERO_IMG_URL, width=900)
 
     # =========================
-    # FLASH MESSAGE
+    # FLASH MESSAGE (after submit)
     # =========================
     if st.session_state.get("flash_success"):
         st.success(st.session_state["flash_success"])
         del st.session_state["flash_success"]
 
+    st.write("")
+
     # =========================
-    # ROLE CARDS
+    # ROLE CARDS + BUTTONS
     # =========================
     c1, c2 = st.columns(2, gap="large")
 
@@ -853,7 +884,6 @@ def render_home():
             """,
             unsafe_allow_html=True
         )
-
         if st.button("Mulai Mengisi Kuesioner", type="primary"):
             st.session_state.view = "respondent"
             _new_respondent_session()
@@ -870,40 +900,11 @@ def render_home():
             """,
             unsafe_allow_html=True
         )
-
         if st.button("Masuk Admin Dashboard", type="secondary"):
             st.session_state.view = "admin_login"
             st.session_state.admin_pwd_attempt = False
             _request_scroll_to_top()
             st.rerun()
-
-    st.markdown(
-        """
-        <div class="footer">
-        © TATTFQ Survey • Dibuat dengan Streamlit • Data tersimpan di database
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
-        if st.button("Masuk Admin Dashboard", type="secondary"):
-            st.session_state.view = "admin_login"
-            st.session_state.admin_pwd_attempt = False
-            _request_scroll_to_top()
-            st.rerun()
-
-    st.divider()
-
-    # =========================
-    # EXTRA INFO SECTION
-    # =========================
-    st.subheader("Petunjuk singkat")
-    st.markdown(
-        """
-        - Kuesioner terdiri dari **3 tahap**: Profil → Performance → Importance.  
-        - Skala menggunakan **Likert 1–6** (tanpa nilai tengah) agar lebih jelas preferensinya.  
-        - Setelah submit, data otomatis direkap untuk **IPA (data-centered)** dan statistik per item/dimensi.
-        """
-    )
 
     st.markdown(
         """
@@ -914,6 +915,7 @@ def render_home():
         unsafe_allow_html=True
     )
 
+
 def render_respondent():
     st.title("Kuesioner TATTFQ — Responden")
 
@@ -923,7 +925,7 @@ def render_respondent():
 
     # indikator 3 tahap
     step = st.session_state.get("step", 0)  # 0 profil, 1 perf, 2 imp
-    st.progress(1/3 if step == 0 else (2/3 if step == 1 else 1.0))
+    st.progress(1 / 3 if step == 0 else (2 / 3 if step == 1 else 1.0))
     c1, c2, c3 = st.columns(3)
     with c1:
         st.markdown("✅ **Profil**" if step == 0 else "☑️ Profil")
@@ -944,15 +946,27 @@ def render_respondent():
 
         a, b = st.columns(2)
         with a:
-            gender = st.selectbox("Jenis kelamin", GENDER_OPTS, index=GENDER_OPTS.index(prof.get("gender", "")) if prof.get("gender", "") in GENDER_OPTS else 0)
-            age = st.selectbox("Usia", AGE_OPTS, index=AGE_OPTS.index(prof.get("age", "")) if prof.get("age", "") in AGE_OPTS else 0)
+            gender = st.selectbox(
+                "Jenis kelamin",
+                GENDER_OPTS,
+                index=GENDER_OPTS.index(prof.get("gender", "")) if prof.get("gender", "") in GENDER_OPTS else 0
+            )
+            age = st.selectbox(
+                "Usia",
+                AGE_OPTS,
+                index=AGE_OPTS.index(prof.get("age", "")) if prof.get("age", "") in AGE_OPTS else 0
+            )
         with b:
-            specialty = st.selectbox("Bidang spesialisasi", SPECIALTY_OPTS, index=SPECIALTY_OPTS.index(prof.get("specialty", "")) if prof.get("specialty", "") in SPECIALTY_OPTS else 0)
+            specialty = st.selectbox(
+                "Bidang spesialisasi",
+                SPECIALTY_OPTS,
+                index=SPECIALTY_OPTS.index(prof.get("specialty", "")) if prof.get("specialty", "") in SPECIALTY_OPTS else 0
+            )
             specialty_other = ""
             if specialty == "Lainnya":
                 specialty_other = st.text_input("Lainnya (isi bidang spesialisasi)", value=prof.get("specialty_other", ""))
 
-        # --- CHANGED: platform jadi dropdown + label baru ---
+        # platform dropdown
         platform = st.selectbox(
             "Aplikasi/Platform Telemedicine yang akan dinilai",
             PLATFORM_OPTS,
@@ -985,7 +999,7 @@ def render_respondent():
             "age": age,
             "specialty": specialty,
             "specialty_other": specialty_other,
-            "platform": platform,  # <-- dropdown value
+            "platform": platform,
             "telemedicine_duration": tele_dur,
             "telemedicine_frequency": tele_freq,
             "telemedicine_last_use": tele_last,
@@ -993,14 +1007,22 @@ def render_respondent():
 
         # validasi minimal (dropdown wajib dipilih)
         missing = []
-        if not gender: missing.append("Jenis kelamin")
-        if not age: missing.append("Usia")
-        if not specialty: missing.append("Bidang spesialisasi")
-        if specialty == "Lainnya" and not specialty_other.strip(): missing.append("Spesialisasi (Lainnya)")
-        if not platform: missing.append("Aplikasi/Platform Telemedicine yang akan dinilai")
-        if not tele_dur: missing.append("Lama menggunakan telemedicine")
-        if not tele_freq: missing.append("Frekuensi telemedicine")
-        if not tele_last: missing.append("Terakhir menggunakan telemedicine")
+        if not gender:
+            missing.append("Jenis kelamin")
+        if not age:
+            missing.append("Usia")
+        if not specialty:
+            missing.append("Bidang spesialisasi")
+        if specialty == "Lainnya" and not specialty_other.strip():
+            missing.append("Spesialisasi (Lainnya)")
+        if not platform:
+            missing.append("Aplikasi/Platform Telemedicine yang akan dinilai")
+        if not tele_dur:
+            missing.append("Lama menggunakan telemedicine")
+        if not tele_freq:
+            missing.append("Frekuensi telemedicine")
+        if not tele_last:
+            missing.append("Terakhir menggunakan telemedicine")
 
         if missing:
             st.info("Lengkapi dulu: " + ", ".join(missing))
@@ -1107,6 +1129,7 @@ def render_respondent():
             with c_no:
                 st.button("❌ Tidak, kembali", on_click=_cancel_submit_confirmation)
 
+
 def render_admin_login():
     st.title("Admin — Login")
 
@@ -1114,7 +1137,6 @@ def render_admin_login():
         _go_home()
         st.rerun()
 
-    # --- CHANGED: username + password, role-based ---
     username = st.text_input("Admin username", value=st.session_state.get("admin_username", ""))
     pwd = st.text_input("Admin password", type="password")
 
@@ -1146,16 +1168,16 @@ def render_admin_login():
             st.session_state.admin_platform_scope = None
             st.rerun()
 
+
 def render_admin_dashboard():
     st.title("Admin Dashboard — TATTFQ")
 
-    # info scope
     scope_platform = st.session_state.get("admin_platform_scope", None)
     admin_user = st.session_state.get("admin_username", "")
     if scope_platform:
-        st.caption(f"Login sebagai: **{admin_user}** (Akses data: **{scope_platform}**)")  # provider admin
+        st.caption(f"Login sebagai: **{admin_user}** (Akses data: **{scope_platform}**)")
     else:
-        st.caption(f"Login sebagai: **{admin_user}** (Akses data: **SEMUA platform**)")  # admin_general
+        st.caption(f"Login sebagai: **{admin_user}** (Akses data: **SEMUA platform**)")
 
     top_left, top_right = st.columns([1, 1])
     with top_left:
@@ -1190,7 +1212,6 @@ def render_admin_dashboard():
         st.success("Semua data berhasil dihapus.")
         st.session_state.delete_all_done = False
 
-    # --- CHANGED: hanya admin_general yang bisa hapus semua ---
     can_delete_all = (scope_platform is None)
 
     colA, colB = st.columns([1, 3])
@@ -1221,7 +1242,6 @@ def render_admin_dashboard():
 
     df = load_all_responses()
 
-    # --- CHANGED: filter data berdasarkan platform untuk admin provider ---
     if scope_platform:
         if "meta_platform" in df.columns:
             df = df[df["meta_platform"].fillna("").astype(str).str.strip() == scope_platform].copy()
@@ -1357,6 +1377,7 @@ def render_admin_dashboard():
                 with grid[idx % 2]:
                     st.markdown(f"**{title}**")
                     st.dataframe(_vc(colname), use_container_width=True, height=220)
+
 
 # =========================
 # ROUTING

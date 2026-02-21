@@ -857,7 +857,7 @@ def render_home():
     # =========================
     # HERO IMAGE (file lokal) — diperkecil (tidak full width)
     # =========================
-    HERO_IMG_FILE = "Telemedicine Application Task–Technology Fit Questionnaire (TATTFQ)-2.png"
+    HERO_IMG_FILE = "hero.png"  # <-- DIGANTI sesuai file yang sudah ada di repo
     hero_path = os.path.join(os.path.dirname(__file__), HERO_IMG_FILE)
 
     if os.path.exists(hero_path):

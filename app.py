@@ -1496,7 +1496,7 @@ def render_admin_dashboard():
     # =========================
     if can_delete_platform:
         st.markdown("### Hapus data")
-        st.caption(f"Aksi ini hanya menghapus respons dengan platform **{scope_platform}** dan tidak bisa dibatalkan.")
+        st.caption(f"Aksi ini akan menghapus seluruh respons dengan platform **{scope_platform}** dan tidak bisa dibatalkan.")
 
         colP1, colP2 = st.columns([1, 3])
         with colP1:

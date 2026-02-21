@@ -301,9 +301,10 @@ def _confirm_and_submit():
         imp_dict=st.session_state.get("imp", {}),
     )
 
-    st.success("Terima kasih! Jawaban Anda telah tersimpan.")
+    # === PATCH: flash message (hindari st.rerun() di callback) ===
+    st.session_state["flash_success"] = "Terima kasih! Jawaban Anda telah tersimpan."
     _reset_survey_state(go_home=True)
-    st.rerun()
+    # === END PATCH ===
 
 
 def load_all_responses(limit=5000):
@@ -633,6 +634,12 @@ _ensure_default_radio_state()
 def render_home():
     st.title("Telemedicine Application Task–Technology Fit Questionnaire (TATTFQ)")
     st.caption("Pilih peran Anda untuk melanjutkan.")
+
+    # === PATCH: tampilkan flash message setelah submit ===
+    if st.session_state.get("flash_success"):
+        st.success(st.session_state["flash_success"])
+        del st.session_state["flash_success"]
+    # === END PATCH ===
 
     c1, c2 = st.columns(2)
     with c1:

@@ -747,15 +747,14 @@ def _plot_quadrant_lines(ax, x_cut, y_cut, trimmed_like_example=False):
 def _annotate_quadrants(ax, x_cut, y_cut, trimmed_like_example=False):
     """
     Label kuadran:
-    - Font lebih kecil
+    - Font kecil
     - Auto-fit (turun ukuran font sampai teks muat dalam area kuadran)
-    - Clip_on tetap True sebagai safety net
+    - Aman untuk versi diagonal + trimmed
     """
     fig = ax.figure
 
-    # --- Helper: convert rect in data/axes coords -> display pixel rect ---
+    # --- Helper: convert rect in axes coords -> display pixel rect ---
     def _rect_axes_to_disp(xa0, ya0, xa1, ya1):
-        # (xa,ya) dalam ax.transAxes
         p0 = ax.transAxes.transform((xa0, ya0))
         p1 = ax.transAxes.transform((xa1, ya1))
         x0, y0 = p0
@@ -769,30 +768,25 @@ def _annotate_quadrants(ax, x_cut, y_cut, trimmed_like_example=False):
         x1, y1 = p1
         return min(x0, x1), min(y0, y1), max(x0, x1), max(y0, y1)
 
-    # --- Helper: create text then shrink fontsize until bbox fits rect ---
-    def _draw_fit_text(x, y, text, rect_disp, transform, ha="center", va="center"):
-        # Pastikan renderer siap
+    # --- Helper: shrink-to-fit text ---
+    def _draw_fit_text(x, y, text, rect_disp, transform):
         fig.canvas.draw()
         renderer = fig.canvas.get_renderer()
 
-        # base font: kecil, tapi adaptif terhadap ukuran axes
-        bbox_in = ax.get_window_extent().transformed(fig.dpi_scale_trans.inverted())  # inches
+        bbox_in = ax.get_window_extent().transformed(fig.dpi_scale_trans.inverted())
         min_pt = min(bbox_in.width, bbox_in.height) * 72.0
-        base_fs = int(round(0.028 * min_pt))  # kecil
-        base_fs = max(5, min(7, base_fs))     # clamp
+        base_fs = int(round(0.028 * min_pt))
+        base_fs = max(4, min(6, base_fs))  # lebih kecil dari versi lama
 
-        # rect in display coords
         rx0, ry0, rx1, ry1 = rect_disp
-        # padding dalam pixel biar tidak nempel garis/tepi
-        pad_px = 8
+        pad_px = 6
 
-        # bbox style yang tipis
         q_bbox = dict(boxstyle="round,pad=0.08", alpha=0.06, edgecolor="none")
 
         t = ax.text(
             x, y, text,
             transform=transform,
-            ha=ha, va=va,
+            ha="center", va="center",
             fontsize=base_fs,
             fontweight="normal",
             alpha=0.75,
@@ -800,12 +794,10 @@ def _annotate_quadrants(ax, x_cut, y_cut, trimmed_like_example=False):
             bbox=q_bbox,
         )
 
-        # shrink loop
-        for fs in range(base_fs, 4, -1):
+        for fs in range(base_fs, 3, -1):
             t.set_fontsize(fs)
             fig.canvas.draw()
             bb = t.get_window_extent(renderer=renderer)
-
             fits = (
                 (bb.x0 >= rx0 + pad_px) and
                 (bb.x1 <= rx1 - pad_px) and
@@ -813,14 +805,12 @@ def _annotate_quadrants(ax, x_cut, y_cut, trimmed_like_example=False):
                 (bb.y1 <= ry1 - pad_px)
             )
             if fits:
-                return  # sudah muat
+                return
 
-        # kalau tetap tidak muat, paksa fontsize minimum + sedikit transparan
-        t.set_fontsize(5)
-        t.set_alpha(0.7)
+        t.set_fontsize(4)
 
     # =========================
-    # MODE 1: tanpa diagonal / tanpa trimmed (kuadran kotak standar)
+    # MODE 1: kuadran kotak biasa
     # =========================
     if not trimmed_like_example:
         x_mid = 0.5
@@ -849,7 +839,7 @@ def _annotate_quadrants(ax, x_cut, y_cut, trimmed_like_example=False):
         return
 
     # =========================
-    # MODE 2: diagonal + trimmed (kuadran jadi region terpotong)
+    # MODE 2: diagonal + trimmed
     # =========================
     x0, x1 = ax.get_xlim()
     y0, y1 = ax.get_ylim()
@@ -858,59 +848,63 @@ def _annotate_quadrants(ax, x_cut, y_cut, trimmed_like_example=False):
     def y_diag(x):
         return x + b
 
-    # margin data
-    mx = 0.03 * (x1 - x0)
-    my = 0.03 * (y1 - y0)
+    mx = 0.05 * (x1 - x0)
+    my = 0.05 * (y1 - y0)
 
-    # ---- Q1 region (x < x_cut, y > y_cut, di atas diagonal)
-    x_q1 = x0 + 0.32 * (x_cut - x0)
-    y_q1 = max(y_cut + 0.55 * (y1 - y_cut), y_diag(x_q1) + my)
+    def _safe_rect(xa0, ya0, xa1, ya1):
+        xa0, xa1 = min(xa0, xa1), max(xa0, xa1)
+        ya0, ya1 = min(ya0, ya1), max(ya0, ya1)
+        xa0 = max(x0, xa0); xa1 = min(x1, xa1)
+        ya0 = max(y0, ya0); ya1 = min(y1, ya1)
+        return xa0, ya0, xa1, ya1
 
-    q1_ymin = max(y_cut, y_diag(x0))
-    q1_rect = _rect_data_to_disp(x0, q1_ymin, x_cut, y1)
+    # ---- Q2 (bawah diagonal, atas horizontal)
+    xL = x_cut + mx
+    xR = x1 - mx
+    yB = y_cut + my
+    yU = y_diag(xL) - my
+    if yU > yB:
+        xa0, ya0, xa1, ya1 = _safe_rect(xL, yB, xR, yU)
+        rect = _rect_data_to_disp(xa0, ya0, xa1, ya1)
+        _draw_fit_text((xa0+xa1)/2, (ya0+ya1)/2,
+                       "Q2\nKeep Up the Good Work",
+                       rect, ax.transData)
 
-    _draw_fit_text(
-        x_q1, y_q1, "Q1\nConcentrate Here",
-        q1_rect, transform=ax.transData
-    )
+    # ---- Q3 (bawah diagonal, kiri vertikal)
+    xL = x0 + mx
+    xR = x_cut - mx
+    yB = y0 + my
+    yU = min(y_cut - my, y_diag(xL) - my)
+    if xR > xL and yU > yB:
+        xa0, ya0, xa1, ya1 = _safe_rect(xL, yB, xR, yU)
+        rect = _rect_data_to_disp(xa0, ya0, xa1, ya1)
+        _draw_fit_text((xa0+xa1)/2, (ya0+ya1)/2,
+                       "Q3\nLow Priority",
+                       rect, ax.transData)
 
-    # ---- Q2 region (x >= x_cut, y >= y_cut, DI BAWAH diagonal)
-    x_q2 = x_cut + 0.62 * (x1 - x_cut)
-    y_top_q2 = y_diag(x_q2) - my
-    y_q2 = y_cut + 0.45 * max(0.0, (y_top_q2 - y_cut))
+    # ---- Q1 (atas diagonal, kiri vertikal)
+    xL = x0 + mx
+    xR = x_cut - mx
+    yB = max(y_cut + my, y_diag(xR) + my)
+    yU = y1 - my
+    if xR > xL and yU > yB:
+        xa0, ya0, xa1, ya1 = _safe_rect(xL, yB, xR, yU)
+        rect = _rect_data_to_disp(xa0, ya0, xa1, ya1)
+        _draw_fit_text((xa0+xa1)/2, (ya0+ya1)/2,
+                       "Q1\nConcentrate Here",
+                       rect, ax.transData)
 
-    q2_ymax = min(y1, y_diag(x1))
-    q2_rect = _rect_data_to_disp(x_cut, y_cut, x1, q2_ymax)
-
-    _draw_fit_text(
-        x_q2, y_q2, "Q2\nKeep Up the Good Work",
-        q2_rect, transform=ax.transData
-    )
-
-    # ---- Q3 region (x < x_cut, y < y_cut, DI BAWAH diagonal)
-    x_q3 = x0 + 0.40 * (x_cut - x0)
-    y_top_q3 = min(y_cut - my, y_diag(x_q3) - my)
-    y_q3 = y0 + 0.30 * (y_top_q3 - y0)
-
-    q3_ymax = min(y_cut, y_diag(x_cut))
-    q3_rect = _rect_data_to_disp(x0, y0, x_cut, q3_ymax)
-
-    _draw_fit_text(
-        x_q3, y_q3, "Q3\nLow Priority",
-        q3_rect, transform=ax.transData
-    )
-
-    # ---- Q4 region (x >= x_cut, y < y_cut, DI BAWAH diagonal)
-    x_q4 = x_cut + 0.65 * (x1 - x_cut)
-    y_q4 = y0 + 0.30 * (y_cut - y0)
-    y_q4 = min(y_q4, y_diag(x_q4) - my)
-
-    q4_rect = _rect_data_to_disp(x_cut, y0, x1, y_cut)
-
-    _draw_fit_text(
-        x_q4, y_q4, "Q4\nPossible Overkill",
-        q4_rect, transform=ax.transData
-    )
+    # ---- Q4 (bawah horizontal)
+    xL = x_cut + mx
+    xR = x1 - mx
+    yB = y0 + my
+    yU = y_cut - my
+    if xR > xL and yU > yB:
+        xa0, ya0, xa1, ya1 = _safe_rect(xL, yB, xR, yU)
+        rect = _rect_data_to_disp(xa0, ya0, xa1, ya1)
+        _draw_fit_text((xa0+xa1)/2, (ya0+ya1)/2,
+                       "Q4\nPossible Overkill",
+                       rect, ax.transData)
 
 
 # =========================

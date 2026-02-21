@@ -1691,7 +1691,7 @@ def render_admin_dashboard():
 
             st.dataframe(show, use_container_width=True)
 
-    with tab3:
+with tab3:
     if len(df) == 0:
         st.info("Belum ada data (atau tidak ada data pada periode terpilih).")
     else:

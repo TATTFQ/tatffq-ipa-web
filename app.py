@@ -568,10 +568,19 @@ def compute_stats_and_ipa(df_flat: pd.DataFrame):
     stats = pd.DataFrame(rows)
     stats["Gap_mean(P-I)"] = stats["Performance_mean"] - stats["Importance_mean"]
 
+    # cut-off data-centered
     x_cut = float(stats["Performance_mean"].mean(skipna=True))
     y_cut = float(stats["Importance_mean"].mean(skipna=True))
 
-    def quadrant(x: float, y: float) -> str:
+    quad_order = [
+        "I - Concentrate Here",
+        "II - Keep Up the Good Work",
+        "III - Low Priority",
+        "IV - Possible Overkill",
+    ]
+
+    # --- Versi 1 (tanpa diagonal): klasik 4 kuadran (x_cut, y_cut) ---
+    def quadrant_v1(x: float, y: float) -> str:
         if pd.isna(x) or pd.isna(y):
             return "NA"
         if y >= y_cut and x < x_cut:
@@ -582,36 +591,52 @@ def compute_stats_and_ipa(df_flat: pd.DataFrame):
             return "III - Low Priority"
         return "IV - Possible Overkill"
 
-    stats["Quadrant"] = [
-        quadrant(x, y) for x, y in zip(stats["Performance_mean"], stats["Importance_mean"])
-    ]
+    # --- Versi 2 (dengan diagonal): pakai diagonal y = x + b lewat (x_cut, y_cut) ---
+    # Region sesuai label plot trimmed:
+    # Q1: y>=y_cut DAN y>=diag
+    # Q2: y>=y_cut DAN y<diag
+    # Q3: y<y_cut DAN y<diag
+    # Q4: sisanya
+    b = y_cut - x_cut
 
+    def quadrant_v2(x: float, y: float) -> str:
+        if pd.isna(x) or pd.isna(y):
+            return "NA"
+        y_diag = x + b
+        if (y >= y_cut) and (y >= y_diag):
+            return "I - Concentrate Here"
+        if (y >= y_cut) and (y < y_diag):
+            return "II - Keep Up the Good Work"
+        if (y < y_cut) and (y < y_diag):
+            return "III - Low Priority"
+        return "IV - Possible Overkill"
+
+    stats["Quadrant_v1"] = [quadrant_v1(x, y) for x, y in zip(stats["Performance_mean"], stats["Importance_mean"])]
+    stats["Quadrant_v2"] = [quadrant_v2(x, y) for x, y in zip(stats["Performance_mean"], stats["Importance_mean"])]
+
+    quad_lists_v1 = {q: stats.loc[stats["Quadrant_v1"] == q, "Item"].tolist() for q in quad_order}
+    quad_lists_v2 = {q: stats.loc[stats["Quadrant_v2"] == q, "Item"].tolist() for q in quad_order}
+
+    return stats, x_cut, y_cut, quad_lists_v1, quad_lists_v2
+
+
+def compute_dimension_stats_and_ipa(df_flat: pd.DataFrame):
     quad_order = [
         "I - Concentrate Here",
         "II - Keep Up the Good Work",
         "III - Low Priority",
         "IV - Possible Overkill",
     ]
-    quad_lists = {q: stats.loc[stats["Quadrant"] == q, "Item"].tolist() for q in quad_order}
 
-    return stats, x_cut, y_cut, quad_lists
-
-
-def compute_dimension_stats_and_ipa(df_flat: pd.DataFrame):
     if df_flat is None or df_flat.empty:
         cols = [
             "Dimension", "Dimension_name", "n_items",
             "Performance_min", "Performance_max", "Performance_mean",
             "Importance_min", "Importance_max", "Importance_mean",
-            "Gap_mean(P-I)", "Quadrant",
+            "Gap_mean(P-I)", "Quadrant_v1", "Quadrant_v2",
         ]
         empty_stats = pd.DataFrame(columns=cols)
-        return empty_stats, np.nan, np.nan, {q: [] for q in [
-            "I - Concentrate Here",
-            "II - Keep Up the Good Work",
-            "III - Low Priority",
-            "IV - Possible Overkill",
-        ]}
+        return empty_stats, np.nan, np.nan, {q: [] for q in quad_order}, {q: [] for q in quad_order}
 
     rows = []
     for dim_full, abbr in DIM_ABBR.items():
@@ -650,7 +675,8 @@ def compute_dimension_stats_and_ipa(df_flat: pd.DataFrame):
     x_cut = float(dim_stats["Performance_mean"].mean(skipna=True))
     y_cut = float(dim_stats["Importance_mean"].mean(skipna=True))
 
-    def quadrant(x: float, y: float) -> str:
+    # Versi 1: klasik
+    def quadrant_v1(x: float, y: float) -> str:
         if pd.isna(x) or pd.isna(y):
             return "NA"
         if y >= y_cut and x < x_cut:
@@ -661,19 +687,28 @@ def compute_dimension_stats_and_ipa(df_flat: pd.DataFrame):
             return "III - Low Priority"
         return "IV - Possible Overkill"
 
-    dim_stats["Quadrant"] = [
-        quadrant(x, y) for x, y in zip(dim_stats["Performance_mean"], dim_stats["Importance_mean"])
-    ]
+    # Versi 2: diagonal
+    b = y_cut - x_cut
 
-    quad_order = [
-        "I - Concentrate Here",
-        "II - Keep Up the Good Work",
-        "III - Low Priority",
-        "IV - Possible Overkill",
-    ]
-    quad_lists = {q: dim_stats.loc[dim_stats["Quadrant"] == q, "Dimension"].tolist() for q in quad_order}
+    def quadrant_v2(x: float, y: float) -> str:
+        if pd.isna(x) or pd.isna(y):
+            return "NA"
+        y_diag = x + b
+        if (y >= y_cut) and (y >= y_diag):
+            return "I - Concentrate Here"
+        if (y >= y_cut) and (y < y_diag):
+            return "II - Keep Up the Good Work"
+        if (y < y_cut) and (y < y_diag):
+            return "III - Low Priority"
+        return "IV - Possible Overkill"
 
-    return dim_stats, x_cut, y_cut, quad_lists
+    dim_stats["Quadrant_v1"] = [quadrant_v1(x, y) for x, y in zip(dim_stats["Performance_mean"], dim_stats["Importance_mean"])]
+    dim_stats["Quadrant_v2"] = [quadrant_v2(x, y) for x, y in zip(dim_stats["Performance_mean"], dim_stats["Importance_mean"])]
+
+    quad_lists_v1 = {q: dim_stats.loc[dim_stats["Quadrant_v1"] == q, "Dimension"].tolist() for q in quad_order}
+    quad_lists_v2 = {q: dim_stats.loc[dim_stats["Quadrant_v2"] == q, "Dimension"].tolist() for q in quad_order}
+
+    return dim_stats, x_cut, y_cut, quad_lists_v1, quad_lists_v2
 
 
 def _plot_iso_diagonal(ax, x_cut, y_cut, xlim, ylim, with_endpoints=True):
@@ -1483,8 +1518,8 @@ def render_admin_dashboard():
         if len(df) == 0:
             st.info("Belum ada data (atau tidak ada data pada periode terpilih).")
         else:
-            stats, x_cut, y_cut, _ = compute_stats_and_ipa(df)
-            dim_stats, dx_cut, dy_cut, _ = compute_dimension_stats_and_ipa(df)
+            stats, x_cut, y_cut, quad_v1_items, quad_v2_items = compute_stats_and_ipa(df)
+            dim_stats, dx_cut, dy_cut, quad_v1_dims, quad_v2_dims = compute_dimension_stats_and_ipa(df)
 
             st.subheader("Cut-off (Data-centered) — Items")
             c1, c2 = st.columns(2)
@@ -1493,9 +1528,46 @@ def render_admin_dashboard():
             with c2:
                 st.metric("Importance cut-off (mean global)", f"{y_cut:.3f}")
 
-            st.subheader("Statistik per item (min/max/mean) + GAP(P-I) + Kuadran")
+            st.subheader("Statistik per item (min/max/mean) + GAP(P-I) + Kuadran (Versi 1 & 2)")
             stats_show = _round_df_numeric(stats, 2)
+            # opsional: taruh kuadran bersebelahan dan lebih enak dibaca
+            cols_front = [
+                "Item",
+                "Performance_mean", "Importance_mean", "Gap_mean(P-I)",
+                "Quadrant_v1", "Quadrant_v2",
+                "Performance_min", "Performance_max",
+                "Importance_min", "Importance_max",
+            ]
+            cols_front = [c for c in cols_front if c in stats_show.columns]
+            stats_show = stats_show.reindex(columns=cols_front + [c for c in stats_show.columns if c not in cols_front])
+
             st.dataframe(stats_show.sort_values("Gap_mean(P-I)", ascending=True), use_container_width=True)
+
+            # (plot versi 1 & versi 2 Anda tetap seperti sekarang, tidak perlu diubah)
+
+            st.divider()
+
+            st.subheader("Cut-off (Data-centered) — Dimensions")
+            c1, c2 = st.columns(2)
+            with c1:
+                st.metric("Performance cut-off (mean dim)", f"{dx_cut:.3f}")
+            with c2:
+                st.metric("Importance cut-off (mean dim)", f"{dy_cut:.3f}")
+
+            st.subheader("Statistik per dimensi (min/max/mean) + GAP(P-I) + Kuadran (Versi 1 & 2)")
+            dim_show = _round_df_numeric(dim_stats, 2)
+            cols_front = [
+                "Dimension", "Dimension_name",
+                "Performance_mean", "Importance_mean", "Gap_mean(P-I)",
+                "Quadrant_v1", "Quadrant_v2",
+                "n_items",
+                "Performance_min", "Performance_max",
+                "Importance_min", "Importance_max",
+            ]
+            cols_front = [c for c in cols_front if c in dim_show.columns]
+            dim_show = dim_show.reindex(columns=cols_front + [c for c in dim_show.columns if c not in cols_front])
+
+            st.dataframe(dim_show.sort_values("Gap_mean(P-I)", ascending=True), use_container_width=True)
 
             # ✅ VERSI 1: tanpa diagonal
             st.subheader("Plot IPA (Data-centered) — Items (Versi 1: Tanpa diagonal)")
@@ -1608,40 +1680,68 @@ def render_admin_dashboard():
             st.dataframe(show, use_container_width=True)
 
     with tab3:
-        if len(df) == 0:
-            st.info("Belum ada data (atau tidak ada data pada periode terpilih).")
-        else:
-            stats, _, _, quad_lists = compute_stats_and_ipa(df)
-            dim_stats, _, _, dim_quad_lists = compute_dimension_stats_and_ipa(df)
+    if len(df) == 0:
+        st.info("Belum ada data (atau tidak ada data pada periode terpilih).")
+    else:
+        stats, _, _, quad_v1_items, quad_v2_items = compute_stats_and_ipa(df)
+        dim_stats, _, _, quad_v1_dims, quad_v2_dims = compute_dimension_stats_and_ipa(df)
 
-            # ✅ rename headings
-            st.subheader("Daftar item per kuadran")
-            quad_order = [
-                "I - Concentrate Here",
-                "II - Keep Up the Good Work",
-                "III - Low Priority",
-                "IV - Possible Overkill",
-            ]
-            for q in quad_order:
-                st.markdown(f"### {q}")
-                items = quad_lists.get(q, [])
-                if not items:
-                    st.write(["(kosong)"])
-                else:
-                    pretty = [f"- {code}: {ITEM_TEXT.get(code, '')}" for code in items]
-                    st.markdown("\n".join(pretty))
+        quad_order = [
+            "I - Concentrate Here",
+            "II - Keep Up the Good Work",
+            "III - Low Priority",
+            "IV - Possible Overkill",
+        ]
 
-            st.divider()
+        def _side_by_side_table(left_list, right_list, left_fmt, right_fmt):
+            L = [left_fmt(x) for x in (left_list or [])]
+            R = [right_fmt(x) for x in (right_list or [])]
+            n = max(len(L), len(R), 1)
+            if len(L) < n:
+                L += [""] * (n - len(L))
+            if len(R) < n:
+                R += [""] * (n - len(R))
+            return pd.DataFrame({"Versi 1": L, "Versi 2": R})
 
-            st.subheader("Daftar dimensi per kuadran")
-            for q in quad_order:
-                st.markdown(f"### {q}")
-                dims = dim_quad_lists.get(q, [])
-                if not dims:
-                    st.write(["(kosong)"])
-                else:
-                    pretty = [f"- {abbr}: {DIM_NAME_BY_ABBR.get(abbr, '')}" for abbr in dims]
-                    st.markdown("\n".join(pretty))
+        # =========================
+        # ITEMS
+        # =========================
+        st.subheader("Daftar item per kuadran (Versi 1 vs Versi 2)")
+
+        for q in quad_order:
+            st.markdown(f"### {q}")
+
+            left_items = quad_v1_items.get(q, [])
+            right_items = quad_v2_items.get(q, [])
+
+            df_cmp = _side_by_side_table(
+                left_items,
+                right_items,
+                left_fmt=lambda code: f"{code}: {ITEM_TEXT.get(code, '')}",
+                right_fmt=lambda code: f"{code}: {ITEM_TEXT.get(code, '')}",
+            )
+            st.dataframe(df_cmp, use_container_width=True, hide_index=True)
+
+        st.divider()
+
+        # =========================
+        # DIMENSIONS
+        # =========================
+        st.subheader("Daftar dimensi per kuadran (Versi 1 vs Versi 2)")
+
+        for q in quad_order:
+            st.markdown(f"### {q}")
+
+            left_dims = quad_v1_dims.get(q, [])
+            right_dims = quad_v2_dims.get(q, [])
+
+            df_cmp = _side_by_side_table(
+                left_dims,
+                right_dims,
+                left_fmt=lambda abbr: f"{abbr}: {DIM_NAME_BY_ABBR.get(abbr, '')}",
+                right_fmt=lambda abbr: f"{abbr}: {DIM_NAME_BY_ABBR.get(abbr, '')}",
+            )
+            st.dataframe(df_cmp, use_container_width=True, hide_index=True)
 
     with tab4:
         if len(df) == 0:

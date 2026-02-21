@@ -1539,53 +1539,6 @@ def render_admin_dashboard():
 
     st.divider()
 
-st.divider()
-
-# =========================
-# B) Hapus data PLATFORM saja (admin provider)
-# =========================
-st.markdown("### B) Hapus data platform saya (khusus admin provider)")
-if scope_platform:
-    st.caption(f"Aksi ini hanya menghapus respons dengan platform **{scope_platform}** dan tidak bisa dibatalkan.")
-else:
-    st.caption("Login sebagai admin_general: fitur ini tidak diperlukan (silakan gunakan hapus semua data atau filter).")
-
-colP1, colP2 = st.columns([1, 3])
-with colP1:
-    if st.button(
-        f"🗑️ Hapus data {scope_platform}" if scope_platform else "🗑️ Hapus data platform",
-        type="secondary",
-        disabled=not can_delete_platform,
-    ):
-        st.session_state.confirm_delete_platform = True
-
-if not can_delete_platform:
-    st.info("Catatan: Tombol ini hanya aktif untuk admin provider (mis. admin_gooddoctor).")
-
-if st.session_state.confirm_delete_platform and scope_platform:
-    st.warning(
-        f"Konfirmasi: Anda yakin ingin menghapus SEMUA data untuk platform **{scope_platform}**?",
-        icon="⚠️"
-    )
-    confirm_text_plat = st.text_input(
-        f'Ketik "DELETE" untuk konfirmasi penghapusan data {scope_platform}',
-        key="delete_platform_confirm_text",
-    )
-    can_delete_plat = (confirm_text_plat.strip().upper() == "DELETE")
-
-    c1, c2 = st.columns(2)
-    with c1:
-        st.button(
-            "✅ Ya, hapus data platform",
-            type="primary",
-            disabled=not can_delete_plat,
-            on_click=_confirm_delete_platform,
-        )
-    with c2:
-        st.button("❌ Batal", on_click=_cancel_delete_platform)
-
-    st.divider()
-
     # =========================
     # LOAD + FILTER PLATFORM + FILTER PERIODE
     # =========================
@@ -1703,11 +1656,8 @@ if st.session_state.confirm_delete_platform and scope_platform:
                 use_container_width=True
             )
 
-            # (plot versi 1 & versi 2 Anda tetap seperti sekarang, tidak perlu diubah)
-
             st.divider()
 
-            # ✅ VERSI 1: tanpa diagonal
             st.subheader("Plot IPA (Data-centered) — Items (Versi 1: Tanpa diagonal)")
             fig1 = plot_ipa_items(
                 stats, x_cut, y_cut,
@@ -1717,7 +1667,6 @@ if st.session_state.confirm_delete_platform and scope_platform:
             )
             st.pyplot(fig1, use_container_width=True)
 
-            # ✅ VERSI 2: diagonal + garis kuadran trimmed (mirip contoh)
             st.subheader("Plot IPA (Data-centered) — Items (Versi 2: Dengan diagonal 45°)")
             fig2 = plot_ipa_items(
                 stats, x_cut, y_cut,
@@ -1745,7 +1694,6 @@ if st.session_state.confirm_delete_platform and scope_platform:
                 "Gap_mean(P-I)",
                 "Quadrant_v1", "Quadrant_v2",
             ]
-            # kalau ingin n_items tetap tampil, taruh sebelum gap atau setelah dimension_name (opsional)
             if "n_items" in dim_show.columns:
                 ordered_cols.insert(2, "n_items")
 
@@ -1754,7 +1702,6 @@ if st.session_state.confirm_delete_platform and scope_platform:
 
             st.dataframe(dim_show.sort_values("Gap_mean(P-I)", ascending=True), use_container_width=True)
 
-            # ✅ VERSI 1: tanpa diagonal
             st.subheader("Plot IPA (Data-centered) — Dimensions (Versi 1: Tanpa diagonal)")
             figd1 = plot_ipa_dimensions(
                 dim_stats, dx_cut, dy_cut,
@@ -1764,7 +1711,6 @@ if st.session_state.confirm_delete_platform and scope_platform:
             )
             st.pyplot(figd1, use_container_width=True)
 
-            # ✅ VERSI 2: diagonal + garis kuadran trimmed
             st.subheader("Plot IPA (Data-centered) — Dimensions (Versi 2: Dengan diagonal 45°)")
             figd2 = plot_ipa_dimensions(
                 dim_stats, dx_cut, dy_cut,
@@ -1775,7 +1721,6 @@ if st.session_state.confirm_delete_platform and scope_platform:
             st.pyplot(figd2, use_container_width=True)
 
     with tab2:
-        # ✅ rename + remove caption
         st.subheader("Raw responses")
         if len(df) == 0:
             st.info("Belum ada data (atau tidak ada data pada periode terpilih).")
@@ -1855,14 +1800,9 @@ if st.session_state.confirm_delete_platform and scope_platform:
                     R += [""] * (n - len(R))
                 return pd.DataFrame({"Versi 1": L, "Versi 2": R})
 
-            # =========================
-            # ITEMS
-            # =========================
             st.subheader("Daftar item per kuadran (Versi 1 vs Versi 2)")
-
             for q in quad_order:
                 st.markdown(f"### {q}")
-
                 left_items = quad_v1_items.get(q, [])
                 right_items = quad_v2_items.get(q, [])
 
@@ -1876,14 +1816,9 @@ if st.session_state.confirm_delete_platform and scope_platform:
 
             st.divider()
 
-            # =========================
-            # DIMENSIONS
-            # =========================
             st.subheader("Daftar dimensi per kuadran (Versi 1 vs Versi 2)")
-
             for q in quad_order:
                 st.markdown(f"### {q}")
-
                 left_dims = quad_v1_dims.get(q, [])
                 right_dims = quad_v2_dims.get(q, [])
 
@@ -1930,17 +1865,14 @@ if st.session_state.confirm_delete_platform and scope_platform:
                     st.caption("Tidak ada data.")
                     return
 
-                # chart + download button "di dekat bar chart"
                 left, right = st.columns([4.2, 1.2], vertical_alignment="center")
 
                 with left:
                     fig, ax = plt.subplots(figsize=(6.5, 3.2))
-                    # supaya rapi: urutkan dari kecil->besar (barh enak dibaca)
                     counts_plot = counts.sort_values("Count", ascending=True)
                     ax.barh(counts_plot["Value"], counts_plot["Count"])
                     ax.set_xlabel("Count")
                     ax.set_ylabel("")
-                    ax.set_title("")
                     plt.tight_layout()
                     st.pyplot(fig, use_container_width=True)
 

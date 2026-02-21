@@ -1450,6 +1450,8 @@ def render_admin_dashboard():
     if "delete_platform_done" not in st.session_state:
         st.session_state.delete_platform_done = False
 
+    scope_platform = st.session_state.get("admin_platform_scope", None)
+
     # success alerts
     if st.session_state.delete_all_done:
         st.success("Semua data berhasil dihapus.")
@@ -1459,85 +1461,74 @@ def render_admin_dashboard():
         st.success(f"Data platform **{scope_platform}** berhasil dihapus.")
         st.session_state.delete_platform_done = False
 
-    can_delete_all = (scope_platform is None)          # hanya admin_general
-    can_delete_platform = (scope_platform is not None) # hanya admin provider
+    can_delete_all = (scope_platform is None)           # hanya admin_general
+    can_delete_platform = (scope_platform is not None)  # hanya admin provider
 
     # =========================
-    # A) Hapus SEMUA data (admin_general)
+    # A) Hapus SEMUA data (TAMPILKAN HANYA UNTUK admin_general)
     # =========================
-    st.markdown("### A) Hapus semua data (khusus admin_general)")
-    st.caption("Aksi ini akan menghapus SEMUA respons di tabel responses dan tidak bisa dibatalkan.")
+    if can_delete_all:
+        st.markdown("### A) Hapus semua data")
+        st.caption("Aksi ini akan menghapus SEMUA respons di tabel responses dan tidak bisa dibatalkan.")
 
-    colA, colB = st.columns([1, 3])
-    with colA:
-        if st.button("🗑️ Hapus semua data", type="secondary", disabled=not can_delete_all):
-            st.session_state.confirm_delete_all = True
+        colA, colB = st.columns([1, 3])
+        with colA:
+            if st.button("🗑️ Hapus semua data", type="secondary"):
+                st.session_state.confirm_delete_all = True
 
-    if not can_delete_all:
-        st.info("Catatan: Hanya **admin_general** yang dapat menghapus semua data.")
+        if st.session_state.confirm_delete_all:
+            st.warning("Konfirmasi: Anda yakin ingin menghapus SEMUA data respons?", icon="⚠️")
+            confirm_text = st.text_input('Ketik "DELETE" untuk konfirmasi', key="delete_confirm_text")
+            can_delete = (confirm_text.strip().upper() == "DELETE")
 
-    if st.session_state.confirm_delete_all:
-        st.warning("Konfirmasi: Anda yakin ingin menghapus SEMUA data respons?", icon="⚠️")
-        confirm_text = st.text_input('Ketik "DELETE" untuk konfirmasi', key="delete_confirm_text")
-        can_delete = (confirm_text.strip().upper() == "DELETE")
+            c1, c2 = st.columns(2)
+            with c1:
+                st.button(
+                    "✅ Ya, hapus sekarang",
+                    type="primary",
+                    disabled=not can_delete,
+                    on_click=_confirm_delete_all,
+                )
+            with c2:
+                st.button("❌ Batal", on_click=_cancel_delete_all)
 
-        c1, c2 = st.columns(2)
-        with c1:
-            st.button(
-                "✅ Ya, hapus sekarang",
-                type="primary",
-                disabled=not can_delete,
-                on_click=_confirm_delete_all,
-            )
-        with c2:
-            st.button("❌ Batal", on_click=_cancel_delete_all)
-
-    st.divider()
+        st.divider()
 
     # =========================
-    # B) Hapus data PLATFORM saja (admin provider)
+    # B) Hapus data PLATFORM saja (TAMPILKAN HANYA UNTUK admin provider)
     # =========================
-    st.markdown("### B) Hapus data platform saya (khusus admin provider)")
-    if scope_platform:
+    if can_delete_platform:
+        st.markdown("### B) Hapus data")
         st.caption(f"Aksi ini hanya menghapus respons dengan platform **{scope_platform}** dan tidak bisa dibatalkan.")
-    else:
-        st.caption("Login sebagai admin_general: fitur ini tidak diperlukan (silakan gunakan hapus semua data atau filter).")
 
-    colP1, colP2 = st.columns([1, 3])
-    with colP1:
-        if st.button(
-            f"🗑️ Hapus data {scope_platform}" if scope_platform else "🗑️ Hapus data platform",
-            type="secondary",
-            disabled=not can_delete_platform,
-        ):
-            st.session_state.confirm_delete_platform = True
+        colP1, colP2 = st.columns([1, 3])
+        with colP1:
+            if st.button(f"🗑️ Hapus data {scope_platform}", type="secondary"):
+                st.session_state.confirm_delete_platform = True
 
-    if not can_delete_platform:
-        st.info("Catatan: Tombol ini hanya aktif untuk admin provider (mis. admin_gooddoctor).")
-
-    if st.session_state.confirm_delete_platform and scope_platform:
-        st.warning(
-            f"Konfirmasi: Anda yakin ingin menghapus SEMUA data untuk platform **{scope_platform}**?",
-            icon="⚠️"
-        )
-        confirm_text_plat = st.text_input(
-            f'Ketik "DELETE" untuk konfirmasi penghapusan data {scope_platform}',
-            key="delete_platform_confirm_text",
-        )
-        can_delete_plat = (confirm_text_plat.strip().upper() == "DELETE")
-
-        c1, c2 = st.columns(2)
-        with c1:
-            st.button(
-                "✅ Ya, hapus data platform",
-                type="primary",
-                disabled=not can_delete_plat,
-                on_click=_confirm_delete_platform,
+        if st.session_state.confirm_delete_platform:
+            st.warning(
+                f"Konfirmasi: Anda yakin ingin menghapus SEMUA data untuk platform **{scope_platform}**?",
+                icon="⚠️"
             )
-        with c2:
-            st.button("❌ Batal", on_click=_cancel_delete_platform)
+            confirm_text_plat = st.text_input(
+                f'Ketik "DELETE" untuk konfirmasi penghapusan data {scope_platform}',
+                key="delete_platform_confirm_text",
+            )
+            can_delete_plat = (confirm_text_plat.strip().upper() == "DELETE")
 
-    st.divider()
+            c1, c2 = st.columns(2)
+            with c1:
+                st.button(
+                    "✅ Ya, hapus data platform",
+                    type="primary",
+                    disabled=not can_delete_plat,
+                    on_click=_confirm_delete_platform,
+                )
+            with c2:
+                st.button("❌ Batal", on_click=_cancel_delete_platform)
+
+        st.divider()
 
     # =========================
     # LOAD + FILTER PLATFORM + FILTER PERIODE

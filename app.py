@@ -757,23 +757,21 @@ def render_home():
     st.markdown(
         """
         <style>
-        /* Page padding */
         .block-container { padding-top: 2.2rem; padding-bottom: 2rem; }
 
-        /* Hero title */
         .hero-title {
             font-size: 2.6rem;
             font-weight: 800;
             line-height: 1.12;
             margin-bottom: .4rem;
         }
+
         .hero-subtitle {
             font-size: 1.05rem;
             opacity: .85;
             margin-bottom: 1.1rem;
         }
 
-        /* Cards */
         .card {
             border: 1px solid rgba(255,255,255,0.08);
             background: rgba(255,255,255,0.03);
@@ -781,17 +779,18 @@ def render_home():
             padding: 18px 18px 14px 18px;
             box-shadow: 0 6px 22px rgba(0,0,0,0.10);
         }
+
         .card h3 {
             margin: 0 0 .25rem 0;
             font-size: 1.25rem;
         }
+
         .card p {
             margin: 0;
             opacity: .85;
             font-size: .96rem;
         }
 
-        /* Make buttons bigger */
         div.stButton > button {
             height: 3.05rem;
             border-radius: 14px;
@@ -799,22 +798,6 @@ def render_home():
             width: 100%;
         }
 
-        /* Small badges */
-        .badge {
-            display: inline-block;
-            padding: .25rem .55rem;
-            border-radius: 999px;
-            font-size: .78rem;
-            font-weight: 700;
-            background: rgba(255,255,255,0.08);
-            border: 1px solid rgba(255,255,255,0.10);
-            margin-right: .35rem;
-        }
-
-        /* Divider spacing */
-        hr { margin: 1.2rem 0; }
-
-        /* Footer */
         .footer {
             opacity: .7;
             font-size: .9rem;
@@ -826,49 +809,37 @@ def render_home():
     )
 
     # =========================
-    # HERO (Title + Subtitle)
+    # HERO
     # =========================
     st.markdown(
         """
-        <div class="hero-title">Telemedicine Application Task–Technology Fit Questionnaire (TATTFQ)</div>
+        <div class="hero-title">
+        Telemedicine Application Task–Technology Fit Questionnaire (TATTFQ)
+        </div>
         <div class="hero-subtitle">
-            Survei singkat untuk menilai kesesuaian tugas klinis dengan fitur/teknologi aplikasi telemedicine,
-            dari perspektif <b>physician</b>.
+        Survei singkat untuk menilai task-technology fit aplikasi telemedicine dari perspektif dokter.
         </div>
         """,
         unsafe_allow_html=True
     )
 
     # =========================
-    # HERO IMAGE (via URL)
+    # HERO IMAGE (lebih kecil)
     # =========================
     HERO_IMG_URL = "https://images.unsplash.com/photo-1580281657527-47f249e8f8a3?auto=format&fit=crop&w=1600&q=80"
-    st.image(HERO_IMG_URL, use_container_width=True)
+
+    # dibuat lebih kecil (tidak full width)
+    st.image(HERO_IMG_URL, width=850)
 
     # =========================
-    # FLASH MESSAGE (after submit)
+    # FLASH MESSAGE
     # =========================
     if st.session_state.get("flash_success"):
         st.success(st.session_state["flash_success"])
         del st.session_state["flash_success"]
 
     # =========================
-    # FEATURE BADGES
-    # =========================
-    st.markdown(
-        """
-        <span class="badge">📌 Importance vs Performance</span>
-        <span class="badge">📊 Otomatis min/max/mean</span>
-        <span class="badge">🧮 Gap (P−I)</span>
-        <span class="badge">🔐 Admin role-based</span>
-        """,
-        unsafe_allow_html=True
-    )
-
-    st.write("")
-
-    # =========================
-    # ROLE CARDS + BUTTONS
+    # ROLE CARDS
     # =========================
     c1, c2 = st.columns(2, gap="large")
 
@@ -882,6 +853,7 @@ def render_home():
             """,
             unsafe_allow_html=True
         )
+
         if st.button("Mulai Mengisi Kuesioner", type="primary"):
             st.session_state.view = "respondent"
             _new_respondent_session()
@@ -898,6 +870,21 @@ def render_home():
             """,
             unsafe_allow_html=True
         )
+
+        if st.button("Masuk Admin Dashboard", type="secondary"):
+            st.session_state.view = "admin_login"
+            st.session_state.admin_pwd_attempt = False
+            _request_scroll_to_top()
+            st.rerun()
+
+    st.markdown(
+        """
+        <div class="footer">
+        © TATTFQ Survey • Dibuat dengan Streamlit • Data tersimpan di database
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
         if st.button("Masuk Admin Dashboard", type="secondary"):
             st.session_state.view = "admin_login"
             st.session_state.admin_pwd_attempt = False

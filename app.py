@@ -51,9 +51,7 @@ LIKERT_IMP = {
 # ITEMS (kode + pernyataan)
 # =========================
 ITEMS = [
-    # =========================
     # Data & Services Integration
-    # =========================
     ("Data & Services Integration", "DSI1",
      "Aplikasi telemedicine memungkinkan informasi terkait telekonsultasi klinis (hasil anamnesis, diagnosis, pemeriksaan fisik, penelaahan hasil pemeriksaan penunjang, anjuran, edukasi, pengobatan, dan/atau rujukan yang diberikan) dapat tercatat secara tepat dalam rekam medis pasien sesuai dengan ketentuan peraturan perundang-undangan"),
     ("Data & Services Integration", "DSI2",
@@ -65,17 +63,13 @@ ITEMS = [
     ("Data & Services Integration", "DSI5",
      "Aplikasi telemedicine menyediakan data penting yang saya perlukan dalam memberikan layanan kesehatan jarak jauh"),
 
-    # =========================
     # Clinical Decision Support
-    # =========================
     ("Clinical Decision Support", "CDS1",
      "Aplikasi telemedicine dapat secara otomatis memberikan rekomendasi diagnosis, anjuran, edukasi, dan/atau penatalaksanaan pasien (termasuk pengobatan) kepada dokter berdasarkan data dan hasil pemeriksaan pasien"),
     ("Clinical Decision Support", "CDS2",
      "Aplikasi telemedicine dapat secara otomatis mencegah penulisan resep untuk obat-obat yang dikecualikan dalam peraturan pemerintah; memiliki potensi interaksi dengan obat lainnya; dan/atau tidak sesuai dengan kondisi khusus pasien, seperti alergi, hamil, menyusui, atau kondisi lainnya, sehingga hanya obat yang aman dan sesuai yang dapat diresepkan"),
 
-    # =========================
     # Clinical Communication
-    # =========================
     ("Clinical Communication", "CCM1",
      "Aplikasi telemedicine dapat memfasilitasi pertukaran informasi antar dokter, seperti informasi mengenai kondisi kesehatan dan/atau hasil pemeriksaan pasien yang dirujuk"),
     ("Clinical Communication", "CCM2",
@@ -87,9 +81,7 @@ ITEMS = [
     ("Clinical Communication", "CCM5",
      "Aplikasi telemedicine memungkinkan pasien untuk memberikan penilaian terhadap layanan dan/atau persetujuan/penolakan terhadap rekomendasi medis yang saya berikan"),
 
-    # =========================
     # Clinical Task Support
-    # =========================
     ("Clinical Task Support", "CTS1",
      "Aplikasi telemedicine memungkinkan saya, sebagai dokter yang berwenang, untuk mengakses, meninjau, dan/atau memperbarui data rekam medis pasien"),
     ("Clinical Task Support", "CTS2",
@@ -109,17 +101,13 @@ ITEMS = [
     ("Clinical Task Support", "CTS9",
      "Aplikasi telemedicine memungkinkan saya untuk memantau perkembangan kondisi pasien setelah pengobatan diberikan"),
 
-    # =========================
     # Scheduling & Notification
-    # =========================
     ("Scheduling & Notification", "SCN1",
      "Aplikasi telemedicine memungkinkan saya untuk mengatur jadwal konsultasi dan/atau follow-up dengan pasien"),
     ("Scheduling & Notification", "SCN2",
      "Aplikasi telemedicine menyediakan notifikasi yang saya butuhkan dalam memberikan layanan kesehatan jarak jauh kepada pasien"),
 
-    # =========================
     # System Reliability
-    # =========================
     ("System Reliability", "SRB1",
      "Aplikasi telemedicine yang saya gunakan dapat diandalkan untuk selalu aktif dan/atau tersedia saat saya membutuhkannya"),
     ("System Reliability", "SRB2",
@@ -127,25 +115,19 @@ ITEMS = [
     ("System Reliability", "SRB3",
      "Jika aplikasi telemedicine sedang mengalami kerusakan dan/atau perawatan sistem, terdapat jaminan bahwa aplikasi dapat digunakan kembali dalam waktu tertentu (misalnya 24 jam)"),
 
-    # =========================
     # Ease of Use & Support
-    # =========================
     ("Ease of Use & Support", "EUS1",
      "Aplikasi telemedicine mudah untuk dipelajari dan/atau digunakan"),
     ("Ease of Use & Support", "EUS2",
      "Aplikasi telemedicine menyediakan bantuan bagi pengguna yang mengalami kesulitan dalam dalam menggunakan aplikasi"),
 
-    # =========================
     # Privacy & Security
-    # =========================
     ("Privacy & Security", "PSC1",
      "Aplikasi telemedicine menyediakan mekanisme verifikasi dan/atau validasi keabsahan pengguna untuk memastikan bahwa hanya individu yang berwenang yang dapat mengakses data"),
     ("Privacy & Security", "PSC2",
      "Aplikasi telemedicine memiliki fitur keamanan yang baik untuk melindungi data dari akses yang tidak sah dan/atau kebocoran data"),
 
-    # =========================
     # Data Quality & Accessibility
-    # =========================
     ("Data Quality & Accessibility", "DQA1",
      "Aplikasi telemedicine menyediakan data yang berkualitas (akurat, mutakhir, dan/atau memiliki tingkat detail yang sesuai) untuk tugas saya memberikan layanan kesehatan jarak jauh kepada pasien"),
     ("Data Quality & Accessibility", "DQA2",
@@ -160,16 +142,17 @@ ITEMS = [
      "Aplikasi telemedicine menampilkan data yang saya perlukan dalam bentuk yang mudah dibaca dan/atau dimengerti"),
 ]
 
-# =========================
-# BUILD ITEM_CODES + DIMS (WAJIB sebelum DIM_CODES)
-# =========================
 ITEM_CODES = [code for _, code, _ in ITEMS]
+ITEM_TEXT = {code: text_ for _, code, text_ in ITEMS}
+ITEM_DIM = {code: dim for dim, code, _ in ITEMS}
+
 
 def group_by_dim(items):
     grouped = {}
     for dim, code, text_ in items:
         grouped.setdefault(dim, []).append((code, text_))
     return grouped
+
 
 DIMS = group_by_dim(ITEMS)
 
@@ -188,9 +171,10 @@ DIM_ABBR = {
     "Data Quality & Accessibility": "DQA",
 }
 DIM_CODES = {DIM_ABBR[dim]: [code for code, _ in items] for dim, items in DIMS.items()}
+DIM_NAME_BY_ABBR = {abbr: full for full, abbr in DIM_ABBR.items()}
 
 # =========================
-# UX helpers (scroll, state)
+# UX helpers
 # =========================
 def _request_scroll_to_top():
     st.session_state._scroll_to_top = True
@@ -218,7 +202,6 @@ def _run_scroll_to_top_if_requested():
 
 
 def _ensure_default_radio_state():
-    # default state hanya untuk ITEM_CODES
     for code in ITEM_CODES:
         st.session_state.setdefault(f"perf_{code}", 1)
         st.session_state.setdefault(f"imp_{code}", 1)
@@ -232,11 +215,6 @@ def _sync_dict_from_widget(prefix: str) -> dict:
 
 
 def _hydrate_widget_state_from_answers(prefix: str, answers: dict, force: bool = False):
-    """
-    Sinkronkan widget state dari jawaban tersimpan.
-    - force=False: hanya set kalau key belum ada (aman untuk render normal)
-    - force=True : paksa set (dipakai saat pindah step / balik step)
-    """
     answers = answers or {}
     for code in ITEM_CODES:
         key = f"{prefix}_{code}"
@@ -245,16 +223,17 @@ def _hydrate_widget_state_from_answers(prefix: str, answers: dict, force: bool =
             st.session_state[key] = desired
 
 
-# =========================
-# FIX: hydrate hanya sekali saat "masuk step"
-# =========================
 def _enter_step(step: int):
-    """Panggil saat baru masuk ke step tertentu (agar hydrate hanya 1x)."""
     st.session_state.step = step
     st.session_state._enter_step = True
 
 
-def _reset_survey_state():
+def _go_home():
+    st.session_state.view = "home"
+    _request_scroll_to_top()
+
+
+def _reset_survey_state(go_home: bool = False):
     st.session_state.step = 1
     st.session_state.perf = {}
     st.session_state.imp = {}
@@ -264,8 +243,10 @@ def _reset_survey_state():
     st.session_state.confirm_submit = False
     st.session_state.pending_respondent_code = ""
     st.session_state.pending_meta = {}
-    st.session_state._enter_step = True  # FIX
+    st.session_state._enter_step = True
     _request_scroll_to_top()
+    if go_home:
+        _go_home()
 
 
 def _request_submit_confirmation(respondent_code: str, meta: dict):
@@ -310,8 +291,6 @@ def insert_response(respondent_code, meta, perf_dict, imp_dict):
 
 
 def _confirm_and_submit():
-    # ambil jawaban terbaru dari widget
-    # PERF JANGAN di-sync di step 2 karena widget perf tidak dirender (bisa balik jadi 1)
     st.session_state.imp = _sync_dict_from_widget("imp")
 
     insert_response(
@@ -323,7 +302,7 @@ def _confirm_and_submit():
     )
 
     st.success("Terima kasih! Jawaban Anda telah tersimpan.")
-    _reset_survey_state()
+    _reset_survey_state(go_home=True)
     st.rerun()
 
 
@@ -440,7 +419,9 @@ def compute_stats_and_ipa(df_flat: pd.DataFrame):
             return "III - Low Priority"
         return "IV - Possible Overkill"
 
-    stats["Quadrant"] = [quadrant(x, y) for x, y in zip(stats["Performance_mean"], stats["Importance_mean"])]
+    stats["Quadrant"] = [
+        quadrant(x, y) for x, y in zip(stats["Performance_mean"], stats["Importance_mean"])
+    ]
 
     quad_order = [
         "I - Concentrate Here",
@@ -517,7 +498,9 @@ def compute_dimension_stats_and_ipa(df_flat: pd.DataFrame):
             return "III - Low Priority"
         return "IV - Possible Overkill"
 
-    dim_stats["Quadrant"] = [quadrant(x, y) for x, y in zip(dim_stats["Performance_mean"], dim_stats["Importance_mean"])]
+    dim_stats["Quadrant"] = [
+        quadrant(x, y) for x, y in zip(dim_stats["Performance_mean"], dim_stats["Importance_mean"])
+    ]
 
     quad_order = [
         "I - Concentrate Here",
@@ -621,32 +604,61 @@ def _build_quadrant_table_from_stats(stats_df: pd.DataFrame, label_col: str, qua
 
 
 # =========================
-# SIMPLE ROUTING: Respondent vs Admin
+# APP STATE + ROUTING (HOME / RESPONDEN / ADMIN)
 # =========================
-st.sidebar.title("Menu")
-page = st.sidebar.radio("Pilih halaman", ["Responden", "Admin"])
+if "view" not in st.session_state:
+    st.session_state.view = "home"
 
-# ---------------------------------
-# RESPONDENT PAGE
-# ---------------------------------
-if page == "Responden":
+# init state untuk responden
+if "step" not in st.session_state:
+    st.session_state.step = 1
+    st.session_state.perf = {}
+    st.session_state.imp = {}
+    st.session_state.confirm_submit = False
+    st.session_state.pending_respondent_code = ""
+    st.session_state.pending_meta = {}
+    st.session_state._scroll_to_top = False
+    st.session_state._enter_step = True
+
+# init state untuk admin
+if "admin_authed" not in st.session_state:
+    st.session_state.admin_authed = False
+if "admin_pwd_attempt" not in st.session_state:
+    st.session_state.admin_pwd_attempt = False
+
+_run_scroll_to_top_if_requested()
+_ensure_default_radio_state()
+
+
+def render_home():
+    st.title("Telemedicine Application Task–Technology Fit Questionnaire (TATTFQ)")
+    st.caption("Pilih peran Anda untuk melanjutkan.")
+
+    c1, c2 = st.columns(2)
+    with c1:
+        if st.button("👤 Responden", type="primary", use_container_width=True):
+            st.session_state.view = "respondent"
+            _request_scroll_to_top()
+            st.rerun()
+    with c2:
+        if st.button("🔐 Admin", type="secondary", use_container_width=True):
+            st.session_state.view = "admin_login"
+            st.session_state.admin_pwd_attempt = False
+            _request_scroll_to_top()
+            st.rerun()
+
+    st.divider()
+    st.info("Catatan: Pengisian responden terdiri dari 2 tahap: Performance → Importance (skala 1–6).")
+
+
+def render_respondent():
     st.title("Kuesioner TATTFQ — Responden")
     st.caption("Pengisian 2 tahap: Performance (Persetujuan) → Importance (Kepentingan). Skala 1–6.")
 
-    if "step" not in st.session_state:
-        st.session_state.step = 1
-        st.session_state.perf = {}
-        st.session_state.imp = {}
-        st.session_state.confirm_submit = False
-        st.session_state.pending_respondent_code = ""
-        st.session_state.pending_meta = {}
-        st.session_state._scroll_to_top = False
-        st.session_state._enter_step = True  # FIX
-
-    # jalankan scroll jika ada request dari interaksi sebelumnya
-    _run_scroll_to_top_if_requested()
-
-    _ensure_default_radio_state()
+    # tombol kembali ke home
+    if st.button("⬅ Kembali ke Halaman Utama"):
+        _go_home()
+        st.rerun()
 
     # progress indicator
     step = st.session_state.get("step", 1)
@@ -683,7 +695,7 @@ if page == "Responden":
     st.divider()
 
     if st.session_state.step == 1:
-        # FIX: hydrate hanya 1x saat masuk step 1
+        # hydrate hanya 1x saat masuk step 1
         if st.session_state.get("_enter_step", False):
             if st.session_state.get("perf"):
                 _hydrate_widget_state_from_answers("perf", st.session_state["perf"], force=True)
@@ -709,14 +721,13 @@ if page == "Responden":
 
         if st.button("Lanjut ke Tahap 2 (Importance) ➜", type="primary"):
             st.session_state.perf = _sync_dict_from_widget("perf")
-            # kalau sudah pernah isi importance, tampil lagi
             _hydrate_widget_state_from_answers("imp", st.session_state.get("imp", {}), force=True)
-            _enter_step(2)  # FIX
+            _enter_step(2)
             _request_scroll_to_top()
             st.rerun()
 
     else:
-        # FIX: hydrate hanya 1x saat masuk step 2
+        # hydrate hanya 1x saat masuk step 2
         if st.session_state.get("_enter_step", False):
             if st.session_state.get("imp"):
                 _hydrate_widget_state_from_answers("imp", st.session_state["imp"], force=True)
@@ -743,22 +754,16 @@ if page == "Responden":
         left, right = st.columns(2)
         with left:
             if st.button("⬅ Kembali ke Performance"):
-                # JANGAN sync perf di step 2 (widget perf tidak dirender -> bisa balik jadi 1)
                 st.session_state.imp = _sync_dict_from_widget("imp")
-
-                # paksa UI performance mengikuti jawaban yang sudah tersimpan
                 _hydrate_widget_state_from_answers("perf", st.session_state.get("perf", {}), force=True)
-
-                _enter_step(1)  # FIX
+                _enter_step(1)
                 _request_scroll_to_top()
                 st.rerun()
 
         with right:
             submit_disabled = st.session_state.get("confirm_submit", False)
             if st.button("✅ Submit", type="primary", disabled=submit_disabled):
-                # JANGAN sync perf di step 2
                 st.session_state.imp = _sync_dict_from_widget("imp")
-
                 _request_submit_confirmation(
                     respondent_code=(respondent_code.strip() if respondent_code else ""),
                     meta=meta,
@@ -778,19 +783,58 @@ if page == "Responden":
             with c_no:
                 st.button("❌ Tidak, kembali", on_click=_cancel_submit_confirmation)
 
-# ---------------------------------
-# ADMIN PAGE
-# ---------------------------------
-else:
-    st.title("Admin Dashboard — TATTFQ")
 
-    pwd = st.text_input("Admin password", type="password")
+def render_admin_login():
+    st.title("Admin — Login")
+
+    if st.button("⬅ Kembali ke Halaman Utama"):
+        _go_home()
+        st.rerun()
+
     if not ADMIN_PASSWORD:
         st.warning("ADMIN_PASSWORD belum diset di Secrets/env. Set dulu agar dashboard aman.")
-    if pwd != ADMIN_PASSWORD:
-        st.stop()
+
+    pwd = st.text_input("Admin password", type="password")
+
+    # tampilkan error hanya setelah ada attempt
+    col1, col2 = st.columns([1, 1])
+    with col1:
+        if st.button("Masuk", type="primary", use_container_width=True):
+            st.session_state.admin_pwd_attempt = True
+            if pwd == ADMIN_PASSWORD and ADMIN_PASSWORD != "":
+                st.session_state.admin_authed = True
+                st.session_state.view = "admin"
+                _request_scroll_to_top()
+                st.rerun()
+            else:
+                st.session_state.admin_authed = False
+                st.error("Password salah! Isi password dengan benar!")
+
+    with col2:
+        if st.button("Reset", use_container_width=True):
+            st.session_state.admin_pwd_attempt = False
+            st.session_state.admin_authed = False
+            st.rerun()
+
+
+def render_admin_dashboard():
+    st.title("Admin Dashboard — TATTFQ")
+
+    top_left, top_right = st.columns([1, 1])
+    with top_left:
+        if st.button("⬅ Kembali ke Halaman Utama"):
+            st.session_state.admin_authed = False
+            _go_home()
+            st.rerun()
+    with top_right:
+        if st.button("🚪 Logout"):
+            st.session_state.admin_authed = False
+            st.session_state.view = "admin_login"
+            _request_scroll_to_top()
+            st.rerun()
 
     st.divider()
+
     st.subheader("Hapus Semua Data")
     st.caption("Aksi ini akan menghapus SEMUA respons di tabel responses dan tidak bisa dibatalkan.")
 
@@ -950,14 +994,53 @@ else:
             stats, x_cut, y_cut, quad_lists = compute_stats_and_ipa(df)
             dim_stats, dx_cut, dy_cut, dim_quad_lists = compute_dimension_stats_and_ipa(df)
 
-            st.subheader("Daftar item per kuadran")
-            for q, items in quad_lists.items():
+            st.subheader("Daftar item per kuadran (kode + isi item)")
+            quad_order = [
+                "I - Concentrate Here",
+                "II - Keep Up the Good Work",
+                "III - Low Priority",
+                "IV - Possible Overkill",
+            ]
+            for q in quad_order:
                 st.markdown(f"### {q}")
-                st.write(items if items else ["(kosong)"])
+                items = quad_lists.get(q, [])
+                if not items:
+                    st.write(["(kosong)"])
+                else:
+                    pretty = [f"**{code}** — {ITEM_TEXT.get(code, '')}" for code in items]
+                    st.write(pretty)
 
             st.divider()
 
-            st.subheader("Daftar dimensi per kuadran")
-            for q, dims in dim_quad_lists.items():
+            st.subheader("Daftar dimensi per kuadran (kode + nama lengkap)")
+            for q in quad_order:
                 st.markdown(f"### {q}")
-                st.write(dims if dims else ["(kosong)"])
+                dims = dim_quad_lists.get(q, [])
+                if not dims:
+                    st.write(["(kosong)"])
+                else:
+                    pretty = [f"**{abbr}** — {DIM_NAME_BY_ABBR.get(abbr, '')}" for abbr in dims]
+                    st.write(pretty)
+
+
+# =========================
+# ROUTING
+# =========================
+view = st.session_state.view
+
+if view == "home":
+    render_home()
+elif view == "respondent":
+    render_respondent()
+elif view == "admin_login":
+    render_admin_login()
+elif view == "admin":
+    # guard
+    if not st.session_state.get("admin_authed", False):
+        st.session_state.view = "admin_login"
+        st.rerun()
+    render_admin_dashboard()
+else:
+    # fallback
+    st.session_state.view = "home"
+    st.rerun()

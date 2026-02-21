@@ -742,13 +742,12 @@ def _plot_quadrant_lines(ax, x_cut, y_cut, trimmed_like_example=False):
 
 
 # =========================
-# QUADRANT LABELS (✅ ADDED)
+# QUADRANT LABELS (UPDATED - SMALLER FONT)
 # =========================
 def _annotate_quadrants(ax, x_cut, y_cut, trimmed_like_example=False):
     """
     Menulis nama kuadran pada area plot.
-    - Versi 1: 4 kuadran standar (garis vertikal & horizontal penuh)
-    - Versi 2: tetap ditulis 4 kuadran, posisinya digeser sedikit agar aman dari garis trimmed/diagonal
+    Font dibuat kecil dan ringan agar tidak menghalangi item/dimensi.
     """
     x0, x1 = ax.get_xlim()
     y0, y1 = ax.get_ylim()
@@ -756,9 +755,16 @@ def _annotate_quadrants(ax, x_cut, y_cut, trimmed_like_example=False):
     def put(x, y, text):
         ax.text(
             x, y, text,
-            ha="center", va="center",
-            fontsize=11, fontweight="bold",
-            bbox=dict(boxstyle="round,pad=0.25", alpha=0.15, edgecolor="none")
+            ha="center",
+            va="center",
+            fontsize=8,              # 🔽 lebih kecil
+            fontweight="normal",     # 🔽 tidak bold
+            alpha=0.75,              # 🔽 sedikit transparan
+            bbox=dict(
+                boxstyle="round,pad=0.15",
+                alpha=0.08,          # 🔽 box sangat transparan
+                edgecolor="none"
+            )
         )
 
     q1_x = (x0 + x_cut) / 2
@@ -781,10 +787,10 @@ def _annotate_quadrants(ax, x_cut, y_cut, trimmed_like_example=False):
         q3_x -= dx; q3_y -= dy
         q4_x += dx; q4_y -= dy
 
-    put(q1_x, q1_y, "Kuadran I\nConcentrate Here")
-    put(q2_x, q2_y, "Kuadran II\nKeep Up the Good Work")
-    put(q3_x, q3_y, "Kuadran III\nLow Priority")
-    put(q4_x, q4_y, "Kuadran IV\nPossible Overkill")
+    put(q1_x, q1_y, "Q1\nConcentrate Here")
+    put(q2_x, q2_y, "Q2\nKeep Up the Good Work")
+    put(q3_x, q3_y, "Q3\nLow Priority")
+    put(q4_x, q4_y, "Q4\nPossible Overkill")
 
 
 # =========================

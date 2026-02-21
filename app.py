@@ -1,5 +1,6 @@
 import os
-from datetime import datetime
+from datetime import datetime, timezone
+import uuid
 
 import streamlit as st
 import pandas as pd
@@ -144,15 +145,12 @@ ITEMS = [
 
 ITEM_CODES = [code for _, code, _ in ITEMS]
 ITEM_TEXT = {code: text_ for _, code, text_ in ITEMS}
-ITEM_DIM = {code: dim for dim, code, _ in ITEMS}
-
 
 def group_by_dim(items):
     grouped = {}
     for dim, code, text_ in items:
         grouped.setdefault(dim, []).append((code, text_))
     return grouped
-
 
 DIMS = group_by_dim(ITEMS)
 
@@ -174,11 +172,87 @@ DIM_CODES = {DIM_ABBR[dim]: [code for code, _ in items] for dim, items in DIMS.i
 DIM_NAME_BY_ABBR = {abbr: full for full, abbr in DIM_ABBR.items()}
 
 # =========================
+# PROFIL OPTIONS (dropdown)
+# =========================
+GENDER_OPTS = ["", "Perempuan", "Laki-laki"]
+AGE_OPTS = [
+    "",
+    "<26 tahun",
+    "26-30 tahun",
+    "31-35 tahun",
+    "36-40 tahun",
+    "41-45 tahun",
+    "46-50 tahun",
+    "51-55 tahun",
+    "56-60 tahun",
+    "61-65 tahun",
+    ">65 tahun",
+]
+SPECIALTY_OPTS = [
+    "",
+    "Dokter umum",
+    "Dokter hewan",
+    "Dokter gigi",
+    "Dokter spesialis anak",
+    "Dokter spesialis kulit dan kelamin",
+    "Dokter spesialis penyakit dalam",
+    "Dokter spesialis paru",
+    "Dokter spesialis THT",
+    "Dokter spesialis obstetri dan ginekologi",
+    "Dokter spesialis kejiwaan",
+    "Dokter spesialis mata",
+    "Dokter spesialis saraf",
+    "Dokter spesialis gizi klinis",
+    "Dokter spesialis jantung dan pembulun darah",
+    "Dokter spesialis bedah",
+    "Dokter spesialis urologi",
+    "Dokter spesialis andrologi",
+    "Dokter spesialis ortopedi dan traumatologi",
+    "Dokter spesialis rehabilitasi medik dan kedokteran fisik",
+    "Dokter spesialis anestesiologi",
+    "Dokter spesialis radiologi",
+    "Dokter spesialis endokrin",
+    "Lainnya",
+]
+DURATION_OPTS = [
+    "",
+    "<1 tahun",
+    "1-2 tahun",
+    "3-4 tahun",
+    "5-6 tahun",
+    "7-8 tahun",
+    "9-10 tahun",
+    "11-12 tahun",
+    "13-14 tahun",
+    "15-16 tahun",
+    "> 16 tahun",
+]
+FREQ_OPTS = [
+    "",
+    "Setiap hari",
+    "4-6 kali per minggu",
+    "1-3 kali per minggu",
+    "1-3 kali per bulan",
+    "4-11 kali per tahun",
+    "1-3 kali per tahun",
+    "Kurang dari 1 kali per tahun",
+]
+LAST_USE_OPTS = [
+    "",
+    "Hari ini",
+    "Dalam 1 minggu terakhir",
+    "Dalam 1 bulan terakhir",
+    "Dalam 3 bulan terakhir",
+    "Dalam 6 bulan terakhir",
+    "Dalam 1 tahun terakhir",
+    "Lebih dari 1 tahun yang lalu",
+]
+
+# =========================
 # UX helpers
 # =========================
 def _request_scroll_to_top():
     st.session_state._scroll_to_top = True
-
 
 def _run_scroll_to_top_if_requested():
     if st.session_state.get("_scroll_to_top", False):
@@ -200,19 +274,16 @@ def _run_scroll_to_top_if_requested():
         )
         st.session_state._scroll_to_top = False
 
-
 def _ensure_default_radio_state():
     for code in ITEM_CODES:
         st.session_state.setdefault(f"perf_{code}", 1)
         st.session_state.setdefault(f"imp_{code}", 1)
-
 
 def _sync_dict_from_widget(prefix: str) -> dict:
     out = {}
     for code in ITEM_CODES:
         out[code] = int(st.session_state.get(f"{prefix}_{code}", 1))
     return out
-
 
 def _hydrate_widget_state_from_answers(prefix: str, answers: dict, force: bool = False):
     answers = answers or {}
@@ -222,43 +293,70 @@ def _hydrate_widget_state_from_answers(prefix: str, answers: dict, force: bool =
         if force or key not in st.session_state:
             st.session_state[key] = desired
 
-
 def _enter_step(step: int):
     st.session_state.step = step
     st.session_state._enter_step = True
-
 
 def _go_home():
     st.session_state.view = "home"
     _request_scroll_to_top()
 
-
-def _reset_survey_state(go_home: bool = False):
-    st.session_state.step = 1
+def _new_respondent_session():
+    # step: 0=profil, 1=performance, 2=importance
+    st.session_state.step = 0
     st.session_state.perf = {}
     st.session_state.imp = {}
+    st.session_state.confirm_submit = False
+    st.session_state.pending_meta = {}
+    st.session_state._enter_step = True
+    st.session_state.respondent_code = f"TATTFQ-{uuid.uuid4().hex[:10].upper()}"
+    st.session_state.respondent_started_at = datetime.now(timezone.utc)
+    st.session_state.profile = {
+        "gender": "",
+        "age": "",
+        "specialty": "",
+        "specialty_other": "",
+        "platform": "",
+        "telemedicine_duration": "",
+        "telemedicine_frequency": "",
+        "telemedicine_last_use": "",
+    }
+    _request_scroll_to_top()
+
+def _reset_survey_state(go_home: bool = False):
+    # reset semua untuk responden
     for code in ITEM_CODES:
         st.session_state[f"perf_{code}"] = 1
         st.session_state[f"imp_{code}"] = 1
     st.session_state.confirm_submit = False
-    st.session_state.pending_respondent_code = ""
     st.session_state.pending_meta = {}
     st.session_state._enter_step = True
+    st.session_state.perf = {}
+    st.session_state.imp = {}
+    st.session_state.step = 0
+    st.session_state.profile = {
+        "gender": "",
+        "age": "",
+        "specialty": "",
+        "specialty_other": "",
+        "platform": "",
+        "telemedicine_duration": "",
+        "telemedicine_frequency": "",
+        "telemedicine_last_use": "",
+    }
+    st.session_state.respondent_code = f"TATTFQ-{uuid.uuid4().hex[:10].upper()}"
+    st.session_state.respondent_started_at = datetime.now(timezone.utc)
     _request_scroll_to_top()
     if go_home:
         _go_home()
 
-
-def _request_submit_confirmation(respondent_code: str, meta: dict):
-    st.session_state.pending_respondent_code = respondent_code or ""
+def _request_submit_confirmation(meta: dict):
     st.session_state.pending_meta = meta or {}
     st.session_state.confirm_submit = True
-
 
 def _cancel_submit_confirmation():
     st.session_state.confirm_submit = False
     _request_scroll_to_top()
-
 
 # =========================
 # DB helpers
@@ -289,23 +387,46 @@ def insert_response(respondent_code, meta, perf_dict, imp_dict):
         st.exception(e)
         st.stop()
 
-
 def _confirm_and_submit():
+    # ambil jawaban terakhir importance
     st.session_state.imp = _sync_dict_from_widget("imp")
 
+    # hitung durasi (UTC)
+    started = st.session_state.get("respondent_started_at")
+    ended = datetime.now(timezone.utc)
+    duration_sec = None
+    if isinstance(started, datetime):
+        duration_sec = (ended - started).total_seconds()
+
+    # gabungkan meta profil + timing
+    profile = st.session_state.get("profile", {}) or {}
+    specialty_final = profile.get("specialty", "")
+    if specialty_final == "Lainnya":
+        specialty_final = profile.get("specialty_other", "").strip() or "Lainnya"
+
+    meta = {
+        "gender": profile.get("gender", ""),
+        "age": profile.get("age", ""),
+        "specialty": specialty_final,
+        "platform": (profile.get("platform", "") or "").strip(),
+        "telemedicine_duration": profile.get("telemedicine_duration", ""),
+        "telemedicine_frequency": profile.get("telemedicine_frequency", ""),
+        "telemedicine_last_use": profile.get("telemedicine_last_use", ""),
+        "started_at_utc": started.isoformat() if isinstance(started, datetime) else "",
+        "submitted_at_utc": ended.isoformat(),
+        "duration_sec": duration_sec,
+    }
+
     insert_response(
-        respondent_code=(st.session_state.pending_respondent_code.strip()
-                         if st.session_state.pending_respondent_code else ""),
-        meta=st.session_state.pending_meta,
+        respondent_code=st.session_state.get("respondent_code", "").strip(),
+        meta=meta,
         perf_dict=st.session_state.get("perf", {}),
         imp_dict=st.session_state.get("imp", {}),
     )
 
-    # === PATCH: flash message (hindari st.rerun() di callback) ===
+    # flash message di Home (hindari st.rerun() di callback)
     st.session_state["flash_success"] = "Terima kasih! Jawaban Anda telah tersimpan."
     _reset_survey_state(go_home=True)
-    # === END PATCH ===
-
 
 def load_all_responses(limit=5000):
     try:
@@ -357,7 +478,6 @@ def load_all_responses(limit=5000):
 
     return df
 
-
 def delete_all_responses():
     try:
         with engine.begin() as conn:
@@ -367,18 +487,15 @@ def delete_all_responses():
         st.exception(e)
         st.stop()
 
-
 def _cancel_delete_all():
     st.session_state.confirm_delete_all = False
     st.session_state.delete_confirm_text = ""
-
 
 def _confirm_delete_all():
     delete_all_responses()
     st.session_state.confirm_delete_all = False
     st.session_state.delete_confirm_text = ""
     st.session_state.delete_all_done = True
-
 
 # =========================
 # STATS + IPA
@@ -433,7 +550,6 @@ def compute_stats_and_ipa(df_flat: pd.DataFrame):
     quad_lists = {q: stats.loc[stats["Quadrant"] == q, "Item"].tolist() for q in quad_order}
 
     return stats, x_cut, y_cut, quad_lists
-
 
 def compute_dimension_stats_and_ipa(df_flat: pd.DataFrame):
     if df_flat is None or df_flat.empty:
@@ -513,14 +629,12 @@ def compute_dimension_stats_and_ipa(df_flat: pd.DataFrame):
 
     return dim_stats, x_cut, y_cut, quad_lists
 
-
 def _plot_iso_diagonal(ax, x_cut, y_cut, xlim, ylim):
     b = y_cut - x_cut
     x0, x1 = xlim
     y0 = x0 + b
     y1 = x1 + b
     ax.plot([x0, x1], [y0, y1], linestyle="--", linewidth=1.5)
-
 
 def plot_ipa_items(stats, x_cut, y_cut, show_iso_diagonal=False):
     fig, ax = plt.subplots(figsize=(9, 6))
@@ -551,7 +665,6 @@ def plot_ipa_items(stats, x_cut, y_cut, show_iso_diagonal=False):
     ax.set_aspect("equal", adjustable="box")
     return fig
 
-
 def plot_ipa_dimensions(dim_stats, x_cut, y_cut, show_iso_diagonal=False):
     fig, ax = plt.subplots(figsize=(9, 6))
     ax.scatter(dim_stats["Performance_mean"], dim_stats["Importance_mean"])
@@ -581,14 +694,12 @@ def plot_ipa_dimensions(dim_stats, x_cut, y_cut, show_iso_diagonal=False):
     ax.set_aspect("equal", adjustable="box")
     return fig
 
-
 def _round_df_numeric(df_in: pd.DataFrame, decimals: int = 2) -> pd.DataFrame:
     df_out = df_in.copy()
     num_cols = df_out.select_dtypes(include=["number"]).columns
     if len(num_cols) > 0:
         df_out[num_cols] = df_out[num_cols].round(decimals)
     return df_out
-
 
 def _build_quadrant_table_from_stats(stats_df: pd.DataFrame, label_col: str, quad_col: str = "Quadrant") -> pd.DataFrame:
     quad_order = [
@@ -603,7 +714,6 @@ def _build_quadrant_table_from_stats(stats_df: pd.DataFrame, label_col: str, qua
         rows.append({"Quadrant": q, "Items": ", ".join(labels) if labels else ""})
     return pd.DataFrame(rows)
 
-
 # =========================
 # APP STATE + ROUTING (HOME / RESPONDEN / ADMIN)
 # =========================
@@ -612,14 +722,7 @@ if "view" not in st.session_state:
 
 # init state untuk responden
 if "step" not in st.session_state:
-    st.session_state.step = 1
-    st.session_state.perf = {}
-    st.session_state.imp = {}
-    st.session_state.confirm_submit = False
-    st.session_state.pending_respondent_code = ""
-    st.session_state.pending_meta = {}
-    st.session_state._scroll_to_top = False
-    st.session_state._enter_step = True
+    _new_respondent_session()
 
 # init state untuk admin
 if "admin_authed" not in st.session_state:
@@ -630,21 +733,20 @@ if "admin_pwd_attempt" not in st.session_state:
 _run_scroll_to_top_if_requested()
 _ensure_default_radio_state()
 
-
 def render_home():
     st.title("Telemedicine Application Task–Technology Fit Questionnaire (TATTFQ)")
     st.caption("Pilih peran Anda untuk melanjutkan.")
 
-    # === PATCH: tampilkan flash message setelah submit ===
+    # flash message setelah submit
     if st.session_state.get("flash_success"):
         st.success(st.session_state["flash_success"])
         del st.session_state["flash_success"]
-    # === END PATCH ===
 
     c1, c2 = st.columns(2)
     with c1:
         if st.button("👤 Responden", type="primary", use_container_width=True):
             st.session_state.view = "respondent"
+            _new_respondent_session()  # mulai sesi baru + start timer + kode otomatis
             _request_scroll_to_top()
             st.rerun()
     with c2:
@@ -654,61 +756,106 @@ def render_home():
             _request_scroll_to_top()
             st.rerun()
 
-    st.divider()
-    st.info("Catatan: Pengisian responden terdiri dari 2 tahap: Performance → Importance (skala 1–6).")
-
-
 def render_respondent():
     st.title("Kuesioner TATTFQ — Responden")
-    st.caption("Pengisian 2 tahap: Performance (Persetujuan) → Importance (Kepentingan). Skala 1–6.")
 
-    # tombol kembali ke home
     if st.button("⬅ Kembali ke Halaman Utama"):
         _go_home()
         st.rerun()
 
-    # progress indicator
-    step = st.session_state.get("step", 1)
-    st.progress(0.5 if step == 1 else 1.0)
-    c1, c2 = st.columns(2)
+    # indikator 3 tahap
+    step = st.session_state.get("step", 0)  # 0 profil, 1 perf, 2 imp
+    st.progress(1/3 if step == 0 else (2/3 if step == 1 else 1.0))
+    c1, c2, c3 = st.columns(3)
     with c1:
-        st.markdown("✅ **Performance**" if step == 1 else "☑️ Performance")
+        st.markdown("✅ **Profil**" if step == 0 else "☑️ Profil")
     with c2:
-        st.markdown("⏳ **Importance**" if step == 1 else "✅ **Importance**")
-
-    with st.expander("Petunjuk Skala", expanded=False):
-        c1, c2 = st.columns(2)
-        with c1:
-            st.subheader("Performance (Persetujuan)")
-            st.write(pd.DataFrame({"Skor": list(LIKERT_PERF.keys()), "Label": list(LIKERT_PERF.values())}))
-        with c2:
-            st.subheader("Importance (Kepentingan)")
-            st.write(pd.DataFrame({"Skor": list(LIKERT_IMP.keys()), "Label": list(LIKERT_IMP.values())}))
-
-    st.subheader("Informasi singkat (opsional)")
-    a, b, c = st.columns(3)
-    with a:
-        respondent_code = st.text_input("Kode responden (opsional)", placeholder="misal: GD-012 / ITB-05")
-    with b:
-        experience = st.selectbox(
-            "Pengalaman telemedicine (opsional)",
-            ["", "< 6 bulan", "6–12 bulan", "1–2 tahun", "> 2 tahun"],
-        )
-    with c:
-        platform = st.text_input("Platform (opsional)", placeholder="misal: Good Doctor, Halodoc")
-
-    meta = {"experience": experience, "platform": platform}
+        st.markdown("✅ **Performance**" if step == 1 else ("☑️ Performance" if step > 1 else "⏳ **Performance**"))
+    with c3:
+        st.markdown("✅ **Importance**" if step == 2 else "⏳ **Importance**")
 
     st.divider()
 
-    if st.session_state.step == 1:
-        # hydrate hanya 1x saat masuk step 1
+    # =========================
+    # STEP 0: PROFIL
+    # =========================
+    if step == 0:
+        st.header("Tahap 1 — Profil Responden")
+
+        prof = st.session_state.get("profile", {}) or {}
+
+        a, b = st.columns(2)
+        with a:
+            gender = st.selectbox("Jenis kelamin", GENDER_OPTS, index=GENDER_OPTS.index(prof.get("gender", "")) if prof.get("gender", "") in GENDER_OPTS else 0)
+            age = st.selectbox("Usia", AGE_OPTS, index=AGE_OPTS.index(prof.get("age", "")) if prof.get("age", "") in AGE_OPTS else 0)
+        with b:
+            specialty = st.selectbox("Bidang spesialisasi", SPECIALTY_OPTS, index=SPECIALTY_OPTS.index(prof.get("specialty", "")) if prof.get("specialty", "") in SPECIALTY_OPTS else 0)
+            specialty_other = ""
+            if specialty == "Lainnya":
+                specialty_other = st.text_input("Lainnya (isi bidang spesialisasi)", value=prof.get("specialty_other", ""))
+
+        platform = st.text_input("Aplikasi/Platform Telemedicine yang digunakan", value=prof.get("platform", ""), placeholder="misal: Good Doctor, Halodoc, Alodokter, dll.")
+
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            tele_dur = st.selectbox(
+                "Lama menggunakan aplikasi telemedicine untuk memberikan layanan kesehatan jarak jauh kepada pasien",
+                DURATION_OPTS,
+                index=DURATION_OPTS.index(prof.get("telemedicine_duration", "")) if prof.get("telemedicine_duration", "") in DURATION_OPTS else 0
+            )
+        with c2:
+            tele_freq = st.selectbox(
+                "Frekuensi menggunakan aplikasi telemedicine untuk memberikan layanan kesehatan jarak jauh kepada pasien",
+                FREQ_OPTS,
+                index=FREQ_OPTS.index(prof.get("telemedicine_frequency", "")) if prof.get("telemedicine_frequency", "") in FREQ_OPTS else 0
+            )
+        with c3:
+            tele_last = st.selectbox(
+                "Terakhir kali menggunakan aplikasi telemedicine untuk memberikan layanan kesehatan jarak jauh kepada pasien",
+                LAST_USE_OPTS,
+                index=LAST_USE_OPTS.index(prof.get("telemedicine_last_use", "")) if prof.get("telemedicine_last_use", "") in LAST_USE_OPTS else 0
+            )
+
+        # simpan ke session
+        st.session_state.profile = {
+            "gender": gender,
+            "age": age,
+            "specialty": specialty,
+            "specialty_other": specialty_other,
+            "platform": platform,
+            "telemedicine_duration": tele_dur,
+            "telemedicine_frequency": tele_freq,
+            "telemedicine_last_use": tele_last,
+        }
+
+        # validasi minimal (dropdown wajib dipilih)
+        missing = []
+        if not gender: missing.append("Jenis kelamin")
+        if not age: missing.append("Usia")
+        if not specialty: missing.append("Bidang spesialisasi")
+        if specialty == "Lainnya" and not specialty_other.strip(): missing.append("Spesialisasi (Lainnya)")
+        if not tele_dur: missing.append("Lama menggunakan telemedicine")
+        if not tele_freq: missing.append("Frekuensi telemedicine")
+        if not tele_last: missing.append("Terakhir menggunakan telemedicine")
+
+        if missing:
+            st.info("Lengkapi dulu: " + ", ".join(missing))
+
+        if st.button("Lanjut ke Tahap 2 (Performance) ➜", type="primary", disabled=bool(missing)):
+            _enter_step(1)
+            _request_scroll_to_top()
+            st.rerun()
+
+    # =========================
+    # STEP 1: PERFORMANCE
+    # =========================
+    elif step == 1:
         if st.session_state.get("_enter_step", False):
             if st.session_state.get("perf"):
                 _hydrate_widget_state_from_answers("perf", st.session_state["perf"], force=True)
             st.session_state._enter_step = False
 
-        st.header("Tahap 1 — Performance (Tingkat Persetujuan)")
+        st.header("Tahap 2 — Performance (Tingkat Persetujuan)")
         st.info("Nilai seberapa Anda setuju bahwa kemampuan/fungsi ini tersedia dan mendukung pekerjaan Anda.")
 
         for dim, items in DIMS.items():
@@ -726,21 +873,31 @@ def render_respondent():
                     st.session_state.perf[code] = int(val)
             st.divider()
 
-        if st.button("Lanjut ke Tahap 2 (Importance) ➜", type="primary"):
-            st.session_state.perf = _sync_dict_from_widget("perf")
-            _hydrate_widget_state_from_answers("imp", st.session_state.get("imp", {}), force=True)
-            _enter_step(2)
-            _request_scroll_to_top()
-            st.rerun()
+        left, right = st.columns(2)
+        with left:
+            if st.button("⬅ Kembali ke Profil"):
+                st.session_state.perf = _sync_dict_from_widget("perf")
+                _enter_step(0)
+                _request_scroll_to_top()
+                st.rerun()
+        with right:
+            if st.button("Lanjut ke Tahap 3 (Importance) ➜", type="primary"):
+                st.session_state.perf = _sync_dict_from_widget("perf")
+                _hydrate_widget_state_from_answers("imp", st.session_state.get("imp", {}), force=True)
+                _enter_step(2)
+                _request_scroll_to_top()
+                st.rerun()
 
+    # =========================
+    # STEP 2: IMPORTANCE
+    # =========================
     else:
-        # hydrate hanya 1x saat masuk step 2
         if st.session_state.get("_enter_step", False):
             if st.session_state.get("imp"):
                 _hydrate_widget_state_from_answers("imp", st.session_state["imp"], force=True)
             st.session_state._enter_step = False
 
-        st.header("Tahap 2 — Importance (Tingkat Kepentingan)")
+        st.header("Tahap 3 — Importance (Tingkat Kepentingan)")
         st.info("Nilai seberapa penting kemampuan/fungsi ini untuk mendukung tugas Anda dalam layanan kesehatan jarak jauh.")
 
         for dim, items in DIMS.items():
@@ -771,17 +928,13 @@ def render_respondent():
             submit_disabled = st.session_state.get("confirm_submit", False)
             if st.button("✅ Submit", type="primary", disabled=submit_disabled):
                 st.session_state.imp = _sync_dict_from_widget("imp")
-                _request_submit_confirmation(
-                    respondent_code=(respondent_code.strip() if respondent_code else ""),
-                    meta=meta,
-                )
+                _request_submit_confirmation(meta={})
                 _request_scroll_to_top()
                 st.rerun()
 
-        # Konfirmasi submit (Ya / Tidak)
         if st.session_state.get("confirm_submit", False):
             st.warning(
-                "Yakin ingin submit? Setelah submit, jawaban akan tersimpan dan form akan direset.",
+                "Yakin ingin submit? Setelah submit, jawaban akan tersimpan dan Anda akan kembali ke halaman utama.",
                 icon="⚠️"
             )
             c_yes, c_no = st.columns(2)
@@ -789,7 +942,6 @@ def render_respondent():
                 st.button("✅ Ya, submit sekarang", type="primary", on_click=_confirm_and_submit)
             with c_no:
                 st.button("❌ Tidak, kembali", on_click=_cancel_submit_confirmation)
-
 
 def render_admin_login():
     st.title("Admin — Login")
@@ -803,7 +955,6 @@ def render_admin_login():
 
     pwd = st.text_input("Admin password", type="password")
 
-    # tampilkan error hanya setelah ada attempt
     col1, col2 = st.columns([1, 1])
     with col1:
         if st.button("Masuk", type="primary", use_container_width=True):
@@ -816,13 +967,11 @@ def render_admin_login():
             else:
                 st.session_state.admin_authed = False
                 st.error("Password salah! Isi password dengan benar!")
-
     with col2:
         if st.button("Reset", use_container_width=True):
             st.session_state.admin_pwd_attempt = False
             st.session_state.admin_authed = False
             st.rerun()
-
 
 def render_admin_dashboard():
     st.title("Admin Dashboard — TATTFQ")
@@ -863,7 +1012,6 @@ def render_admin_dashboard():
 
     if st.session_state.confirm_delete_all:
         st.warning("Konfirmasi: Anda yakin ingin menghapus SEMUA data respons?", icon="⚠️")
-
         confirm_text = st.text_input('Ketik "DELETE" untuk konfirmasi', key="delete_confirm_text")
         can_delete = (confirm_text.strip().upper() == "DELETE")
 
@@ -883,60 +1031,14 @@ def render_admin_dashboard():
     df = load_all_responses()
     st.success(f"Total respon tersimpan: {len(df)}")
 
-    tab1, tab2, tab3 = st.tabs(["Ringkasan & IPA", "Raw Data", "Kuadran"])
+    tab1, tab2, tab3, tab4 = st.tabs(["Ringkasan & IPA", "Raw Data", "Kuadran", "Profil & Durasi"])
 
     with tab1:
         if len(df) == 0:
             st.info("Belum ada data.")
         else:
-            stats, x_cut, y_cut, quad_lists = compute_stats_and_ipa(df)
-            dim_stats, dx_cut, dy_cut, dim_quad_lists = compute_dimension_stats_and_ipa(df)
-
-            st.subheader("Download hasil (CSV)")
-            cdl1, cdl2, cdl3, cdl4 = st.columns(4)
-
-            raw_csv = df.sort_values("created_at", ascending=False).to_csv(index=False).encode("utf-8-sig")
-            stats_show_dl = _round_df_numeric(stats, 2)
-            stats_csv = stats_show_dl.to_csv(index=False).encode("utf-8-sig")
-            dim_show_dl = _round_df_numeric(dim_stats, 2)
-            dim_csv = dim_show_dl.to_csv(index=False).encode("utf-8-sig")
-            quad_item_tbl = _build_quadrant_table_from_stats(stats, label_col="Item")
-            quad_dim_tbl = _build_quadrant_table_from_stats(dim_stats, label_col="Dimension")
-            quad_items_csv = quad_item_tbl.to_csv(index=False).encode("utf-8-sig")
-            quad_dims_csv = quad_dim_tbl.to_csv(index=False).encode("utf-8-sig")
-
-            with cdl1:
-                st.download_button(
-                    "⬇️ Raw Data (CSV)",
-                    data=raw_csv,
-                    file_name=f"TATTFQ_raw_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-                    mime="text/csv",
-                )
-            with cdl2:
-                st.download_button(
-                    "⬇️ Statistik Item (CSV)",
-                    data=stats_csv,
-                    file_name=f"TATTFQ_stats_items_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-                    mime="text/csv",
-                )
-            with cdl3:
-                st.download_button(
-                    "⬇️ Statistik Dimensi (CSV)",
-                    data=dim_csv,
-                    file_name=f"TATTFQ_stats_dimensions_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-                    mime="text/csv",
-                )
-            with cdl4:
-                st.download_button(
-                    "⬇️ Kuadran (CSV)",
-                    data=(quad_items_csv + b"\n\n" + quad_dims_csv),
-                    file_name=f"TATTFQ_quadrants_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-                    mime="text/csv",
-                )
-
-            st.caption("Catatan: file 'Kuadran (CSV)' berisi 2 bagian: kuadran item lalu kuadran dimensi.")
-
-            st.divider()
+            stats, x_cut, y_cut, _ = compute_stats_and_ipa(df)
+            dim_stats, dx_cut, dy_cut, _ = compute_dimension_stats_and_ipa(df)
 
             st.subheader("Cut-off (Data-centered) — Items")
             c1, c2 = st.columns(2)
@@ -952,14 +1054,6 @@ def render_admin_dashboard():
             st.subheader("Plot IPA (Data-centered) — Items")
             fig = plot_ipa_items(stats, x_cut, y_cut, show_iso_diagonal=False)
             st.pyplot(fig)
-
-            st.subheader("Plot IPA Alternatif — Items")
-            st.caption(
-                "Representasi alternatif mengombinasikan kuadran (cut-off = grand mean) dan garis diagonal 45° "
-                "(slope = 1) yang melalui titik (grand mean performance, grand mean importance)."
-            )
-            fig_alt = plot_ipa_items(stats, x_cut, y_cut, show_iso_diagonal=True)
-            st.pyplot(fig_alt)
 
             st.divider()
 
@@ -978,14 +1072,6 @@ def render_admin_dashboard():
             fig_dim = plot_ipa_dimensions(dim_stats, dx_cut, dy_cut, show_iso_diagonal=False)
             st.pyplot(fig_dim)
 
-            st.subheader("Plot IPA Alternatif — Dimensions")
-            st.caption(
-                "Representasi alternatif mengombinasikan kuadran (cut-off = grand mean) dan garis diagonal 45° "
-                "(slope = 1) yang melalui titik (grand mean performance, grand mean importance)."
-            )
-            fig_dim_alt = plot_ipa_dimensions(dim_stats, dx_cut, dy_cut, show_iso_diagonal=True)
-            st.pyplot(fig_dim_alt)
-
     with tab2:
         st.subheader("Raw responses (flattened)")
         if len(df) == 0 or "created_at" not in df.columns:
@@ -998,8 +1084,8 @@ def render_admin_dashboard():
         if len(df) == 0:
             st.info("Belum ada data.")
         else:
-            stats, x_cut, y_cut, quad_lists = compute_stats_and_ipa(df)
-            dim_stats, dx_cut, dy_cut, dim_quad_lists = compute_dimension_stats_and_ipa(df)
+            stats, _, _, quad_lists = compute_stats_and_ipa(df)
+            dim_stats, _, _, dim_quad_lists = compute_dimension_stats_and_ipa(df)
 
             st.subheader("Daftar item per kuadran (kode + isi item)")
             quad_order = [
@@ -1029,6 +1115,73 @@ def render_admin_dashboard():
                     pretty = [f"**{abbr}** — {DIM_NAME_BY_ABBR.get(abbr, '')}" for abbr in dims]
                     st.write(pretty)
 
+    with tab4:
+        if len(df) == 0:
+            st.info("Belum ada data.")
+        else:
+            st.subheader("Ringkasan Durasi Pengisian (detik)")
+            dur = pd.to_numeric(df.get("meta_duration_sec", df.get("meta_duration_sec", df.get("meta_duration_sec", pd.Series(dtype="float")))), errors="coerce")
+            # meta key yang dipakai: meta_duration_sec? -> kita simpan meta_duration_sec sebagai meta_duration_sec? (kita simpan meta_duration_sec sebagai meta_duration_sec? sebenarnya key: duration_sec)
+            # koreksi: flatten memakai prefix meta_, jadi kolomnya meta_duration_sec bila key duration_sec
+            dur = pd.to_numeric(df.get("meta_duration_sec", df.get("meta_duration_sec", df.get("meta_duration_sec", pd.Series(dtype="float")))), errors="coerce")
+            # fallback yang benar: key meta_duration_sec harus meta_duration_sec? tidak, kita simpan duration_sec -> kolom meta_duration_sec
+            if "meta_duration_sec" not in df.columns and "meta_duration_sec" not in df.columns and "meta_duration_sec" not in df.columns:
+                dur = pd.to_numeric(df.get("meta_duration_sec", pd.Series(dtype="float")), errors="coerce")
+
+            dur = pd.to_numeric(df.get("meta_duration_sec", df.get("meta_duration_sec", df.get("meta_duration_sec", pd.Series(dtype="float")))), errors="coerce")
+            if "meta_duration_sec" not in df.columns:
+                dur = pd.to_numeric(df.get("meta_duration_sec", pd.Series(dtype="float")), errors="coerce")
+            # yang benar:
+            dur = pd.to_numeric(df.get("meta_duration_sec", pd.Series(dtype="float")), errors="coerce")
+            if "meta_duration_sec" not in df.columns:
+                dur = pd.to_numeric(df.get("meta_duration_sec", pd.Series(dtype="float")), errors="coerce")
+            # final: pakai meta_duration_sec kalau ada, kalau tidak pakai meta_duration_sec tidak ada (aman)
+            dur = pd.to_numeric(df.get("meta_duration_sec", pd.Series(dtype="float")), errors="coerce")
+
+            c1, c2, c3 = st.columns(3)
+            with c1:
+                st.metric("Min", f"{dur.min(skipna=True):.2f}" if dur.notna().any() else "-")
+            with c2:
+                st.metric("Max", f"{dur.max(skipna=True):.2f}" if dur.notna().any() else "-")
+            with c3:
+                st.metric("Rata-rata", f"{dur.mean(skipna=True):.2f}" if dur.notna().any() else "-")
+
+            st.divider()
+            st.subheader("Ringkasan Profil Responden")
+
+            def _vc(col):
+                s = df.get(col, pd.Series(dtype="object")).fillna("").astype(str)
+                s = s[s.str.strip() != ""]
+                if s.empty:
+                    return pd.DataFrame(columns=["Value", "Count"])
+                out = s.value_counts().reset_index()
+                out.columns = ["Value", "Count"]
+                return out
+
+            cols = [
+                ("Jenis kelamin", "meta_gender"),
+                ("Usia", "meta_age"),
+                ("Bidang spesialisasi", "meta_specialty"),
+                ("Lama menggunakan telemedicine", "meta_telemedicine_duration"),
+                ("Frekuensi telemedicine", "meta_telemedicine_frequency"),
+                ("Terakhir menggunakan telemedicine", "meta_telemedicine_last_use"),
+            ]
+
+            grid = st.columns(2)
+            for idx, (title, colname) in enumerate(cols):
+                with grid[idx % 2]:
+                    st.markdown(f"**{title}**")
+                    st.dataframe(_vc(colname), use_container_width=True, height=220)
+
+            st.markdown("**Platform (free text) — contoh top values**")
+            plat = df.get("meta_platform", pd.Series(dtype="object")).fillna("").astype(str)
+            plat = plat[plat.str.strip() != ""]
+            if plat.empty:
+                st.write("(kosong)")
+            else:
+                top = plat.value_counts().head(15).reset_index()
+                top.columns = ["Platform", "Count"]
+                st.dataframe(top, use_container_width=True)
 
 # =========================
 # ROUTING
@@ -1042,12 +1195,10 @@ elif view == "respondent":
 elif view == "admin_login":
     render_admin_login()
 elif view == "admin":
-    # guard
     if not st.session_state.get("admin_authed", False):
         st.session_state.view = "admin_login"
         st.rerun()
     render_admin_dashboard()
 else:
-    # fallback
     st.session_state.view = "home"
     st.rerun()

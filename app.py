@@ -459,6 +459,11 @@ def _confirm_and_submit():
 
 
 def load_all_responses(limit=5000):
+    """
+    Load responses dari DB, flatten meta/perf/imp, plus kolom waktu untuk filtering periode admin.
+    Filter periode menggunakan Asia/Jakarta (WIB).
+    Prioritas waktu: meta_submitted_at_utc (jika ada) -> created_at (fallback).
+    """
     try:
         with engine.begin() as conn:
             rows = conn.execute(
@@ -468,7 +473,7 @@ def load_all_responses(limit=5000):
                     FROM responses
                     ORDER BY created_at DESC
                     LIMIT :limit
-                """
+                    """
                 ),
                 {"limit": limit},
             ).fetchall()
@@ -483,10 +488,32 @@ def load_all_responses(limit=5000):
         perf = r.performance or {}
         imp = r.importance or {}
 
+        # created_at (UTC-aware)
+        created_at_utc = pd.to_datetime(r.created_at, utc=True, errors="coerce")
+        created_at_local = created_at_utc.tz_convert("Asia/Jakarta") if pd.notna(created_at_utc) else pd.NaT
+
+        # meta time (UTC-aware)
+        started_at_utc = pd.to_datetime(meta.get("started_at_utc", ""), utc=True, errors="coerce")
+        submitted_at_utc = pd.to_datetime(meta.get("submitted_at_utc", ""), utc=True, errors="coerce")
+
+        started_at_local = started_at_utc.tz_convert("Asia/Jakarta") if pd.notna(started_at_utc) else pd.NaT
+        submitted_at_local = submitted_at_utc.tz_convert("Asia/Jakarta") if pd.notna(submitted_at_utc) else pd.NaT
+
+        # effective time dipakai untuk filter (pakai submit kalau ada)
+        effective_time_local = submitted_at_local if pd.notna(submitted_at_local) else created_at_local
+
         rec = {
             "id": r.id,
-            "created_at": pd.to_datetime(r.created_at),
+            "created_at": created_at_utc,  # simpan UTC-aware
             "respondent_code": r.respondent_code,
+            # tambahan kolom waktu
+            "created_at_utc": created_at_utc,
+            "created_at_local": created_at_local,
+            "meta_started_at_utc_dt": started_at_utc,
+            "meta_submitted_at_utc_dt": submitted_at_utc,
+            "meta_started_at_local": started_at_local,
+            "meta_submitted_at_local": submitted_at_local,
+            "effective_time_local": effective_time_local,
         }
 
         for k, v in meta.items():
@@ -1257,21 +1284,100 @@ def render_admin_dashboard():
 
     st.divider()
 
-    df = load_all_responses()
+    # =========================
+    # LOAD + FILTER PLATFORM + FILTER PERIODE
+    # =========================
+    df_all = load_all_responses()
 
+    df = df_all.copy()
+
+    # Filter platform sesuai role admin
     if scope_platform:
         if "meta_platform" in df.columns:
             df = df[df["meta_platform"].fillna("").astype(str).str.strip() == scope_platform].copy()
         else:
             df = df.iloc[0:0].copy()
 
-    st.success(f"Total respon tersimpan: {len(df)}")
+    # =========================
+    # FILTER PERIODE (SEMUA ADMIN BISA PILIH)
+    # =========================
+    st.subheader("Filter Periode Ringkasan")
+    st.caption(
+        "Filter ini mempengaruhi semua tab (Ringkasan & IPA, Raw Data, Kuadran, Profil & Durasi). "
+        "Tanggal mengikuti zona waktu **Asia/Jakarta**. "
+        "Basis waktu: **meta_submitted_at_utc** (jika ada) → fallback **created_at**."
+    )
+
+    if "admin_filter_mode" not in st.session_state:
+        st.session_state.admin_filter_mode = "Semua data"
+    if "admin_filter_start" not in st.session_state:
+        st.session_state.admin_filter_start = None
+    if "admin_filter_end" not in st.session_state:
+        st.session_state.admin_filter_end = None
+
+    # default range dari data yang sudah terfilter platform
+    effective = pd.to_datetime(df.get("effective_time_local", pd.Series(dtype="object")), errors="coerce")
+    effective_nonnull = effective.dropna()
+
+    default_start = None
+    default_end = None
+    if len(effective_nonnull) > 0:
+        default_start = effective_nonnull.min().date()
+        default_end = effective_nonnull.max().date()
+
+    cF1, cF2, cF3 = st.columns([1.2, 1, 1])
+    with cF1:
+        mode = st.radio(
+            "Mode ringkasan",
+            ["Semua data", "Filter periode"],
+            horizontal=True,
+            index=0 if st.session_state.admin_filter_mode == "Semua data" else 1,
+        )
+        st.session_state.admin_filter_mode = mode
+
+    start_date = None
+    end_date = None
+
+    if mode == "Filter periode":
+        with cF2:
+            start_date = st.date_input(
+                "Dari tanggal",
+                value=st.session_state.admin_filter_start or default_start,
+            )
+        with cF3:
+            end_date = st.date_input(
+                "Sampai tanggal",
+                value=st.session_state.admin_filter_end or default_end,
+            )
+
+        st.session_state.admin_filter_start = start_date
+        st.session_state.admin_filter_end = end_date
+
+        if start_date and end_date and start_date > end_date:
+            st.error("Rentang tanggal tidak valid: 'Dari tanggal' tidak boleh > 'Sampai tanggal'.")
+        else:
+            if start_date and end_date:
+                eff = pd.to_datetime(df.get("effective_time_local", pd.Series(dtype="object")), errors="coerce")
+                df = df.copy()
+                df["_eff_date"] = eff.dt.date
+                df = df[(df["_eff_date"] >= start_date) & (df["_eff_date"] <= end_date)].copy()
+                df.drop(columns=["_eff_date"], inplace=True, errors="ignore")
+    else:
+        # reset state jika kembali ke semua data
+        st.session_state.admin_filter_start = None
+        st.session_state.admin_filter_end = None
+
+    # ringkasan jumlah
+    if mode == "Filter periode" and start_date and end_date and (start_date <= end_date):
+        st.success(f"Total respon (setelah filter): {len(df)}  — Periode: {start_date} s/d {end_date}")
+    else:
+        st.success(f"Total respon tersimpan: {len(df)}")
 
     tab1, tab2, tab3, tab4 = st.tabs(["Ringkasan & IPA", "Raw Data", "Kuadran", "Profil & Durasi"])
 
     with tab1:
         if len(df) == 0:
-            st.info("Belum ada data.")
+            st.info("Belum ada data (atau tidak ada data pada periode terpilih).")
         else:
             stats, x_cut, y_cut, _ = compute_stats_and_ipa(df)
             dim_stats, dx_cut, dy_cut, _ = compute_dimension_stats_and_ipa(df)
@@ -1310,16 +1416,21 @@ def render_admin_dashboard():
 
     with tab2:
         st.subheader("Raw responses (flattened)")
-        st.caption("Kolom waktu per responden tersedia di: meta_started_at_utc, meta_submitted_at_utc, meta_duration_sec.")
-        if len(df) == 0 or "created_at" not in df.columns:
-            st.info("Belum ada data.")
+        st.caption(
+            "Kolom waktu per responden tersedia di: meta_started_at_utc, meta_submitted_at_utc, meta_duration_sec. "
+            "Untuk filter periode dipakai: meta_submitted_at_utc (jika ada) / created_at (fallback) yang dikonversi ke WIB."
+        )
+        if len(df) == 0:
+            st.info("Belum ada data (atau tidak ada data pada periode terpilih).")
             st.dataframe(df, use_container_width=True)
         else:
-            st.dataframe(df.sort_values("created_at", ascending=False), use_container_width=True)
+            show = df.copy()
+            sort_col = "effective_time_local" if "effective_time_local" in show.columns else "created_at"
+            st.dataframe(show.sort_values(sort_col, ascending=False), use_container_width=True)
 
     with tab3:
         if len(df) == 0:
-            st.info("Belum ada data.")
+            st.info("Belum ada data (atau tidak ada data pada periode terpilih).")
         else:
             stats, _, _, quad_lists = compute_stats_and_ipa(df)
             dim_stats, _, _, dim_quad_lists = compute_dimension_stats_and_ipa(df)
@@ -1354,7 +1465,7 @@ def render_admin_dashboard():
 
     with tab4:
         if len(df) == 0:
-            st.info("Belum ada data.")
+            st.info("Belum ada data (atau tidak ada data pada periode terpilih).")
         else:
             st.subheader("Ringkasan Durasi Pengisian (detik)")
             dur = pd.to_numeric(df.get("meta_duration_sec", pd.Series(dtype="float")), errors="coerce")

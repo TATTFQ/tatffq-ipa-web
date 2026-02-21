@@ -765,9 +765,9 @@ def _annotate_quadrants(ax, x_cut, y_cut, trimmed_like_example=False):
         w_pt = bbox_in.width * 72.0
         h_pt = bbox_in.height * 72.0
         min_pt = min(w_pt, h_pt)
-        q_font = int(max(4, min(6, round(0.03 * min_pt))))  # adaptif, tapi tetap kecil
+        q_font = int(max(2, min(4, round(0.03 * min_pt))))  # adaptif, tapi tetap kecil
     except Exception:
-        q_font = 5  # fallback aman
+        q_font = 3  # fallback aman
 
     # bbox diperkecil biar tidak melebar keluar kuadran
     q_bbox = dict(boxstyle="round,pad=0.08", alpha=0.06, edgecolor="none")

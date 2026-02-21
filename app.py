@@ -1049,15 +1049,19 @@ def _render_fixed_width_table(df: pd.DataFrame, col_widths=("50%", "50%")):
     st.markdown(table_html, unsafe_allow_html=True)
 
 
+import zipfile
+
 def _make_quadrant_export_bytes(
     quad_order,
     quad_v1_items, quad_v2_items,
     quad_v1_dims, quad_v2_dims,
 ):
     """
-    Output: (xlsx_bytes, items_csv_bytes, dims_csv_bytes)
-    - Excel: 2 sheet (Items, Dimensions) format long
-    - CSV: masing-masing long
+    Output: (excel_or_zip_bytes, items_csv_bytes, dims_csv_bytes, export_kind)
+
+    export_kind:
+      - "xlsx" -> bytes adalah file .xlsx
+      - "zip"  -> bytes adalah file .zip (fallback berisi 2 CSV) bila engine Excel tidak tersedia
     """
     # ---- ITEMS long
     items_rows = []
@@ -1066,7 +1070,6 @@ def _make_quadrant_export_bytes(
             items_rows.append({"Quadrant": q, "Version": "Versi 1", "Code": code, "Text": ITEM_TEXT.get(code, "")})
         for code in (quad_v2_items.get(q, []) or []):
             items_rows.append({"Quadrant": q, "Version": "Versi 2", "Code": code, "Text": ITEM_TEXT.get(code, "")})
-
     df_items_long = pd.DataFrame(items_rows, columns=["Quadrant", "Version", "Code", "Text"])
 
     # ---- DIMS long
@@ -1076,41 +1079,41 @@ def _make_quadrant_export_bytes(
             dims_rows.append({"Quadrant": q, "Version": "Versi 1", "Code": abbr, "Name": DIM_NAME_BY_ABBR.get(abbr, "")})
         for abbr in (quad_v2_dims.get(q, []) or []):
             dims_rows.append({"Quadrant": q, "Version": "Versi 2", "Code": abbr, "Name": DIM_NAME_BY_ABBR.get(abbr, "")})
-
     df_dims_long = pd.DataFrame(dims_rows, columns=["Quadrant", "Version", "Code", "Name"])
 
-    # ---- Excel bytes
-    bio = BytesIO()
-    with pd.ExcelWriter(bio, engine="openpyxl") as writer:
-        df_items_long.to_excel(writer, index=False, sheet_name="Items_by_Quadrant")
-        df_dims_long.to_excel(writer, index=False, sheet_name="Dims_by_Quadrant")
-    xlsx_bytes = bio.getvalue()
-
+    # ---- CSV bytes (selalu tersedia)
     items_csv_bytes = df_items_long.to_csv(index=False).encode("utf-8")
     dims_csv_bytes = df_dims_long.to_csv(index=False).encode("utf-8")
 
-    return xlsx_bytes, items_csv_bytes, dims_csv_bytes
+    # ---- Coba buat XLSX dengan engine yang tersedia
+    bio = BytesIO()
 
-# =========================
-# APP STATE + ROUTING
-# =========================
-if "view" not in st.session_state:
-    st.session_state.view = "home"
+    # 1) coba openpyxl
+    try:
+        with pd.ExcelWriter(bio, engine="openpyxl") as writer:
+            df_items_long.to_excel(writer, index=False, sheet_name="Items_by_Quadrant")
+            df_dims_long.to_excel(writer, index=False, sheet_name="Dims_by_Quadrant")
+        return bio.getvalue(), items_csv_bytes, dims_csv_bytes, "xlsx"
+    except Exception:
+        pass
 
-if "step" not in st.session_state:
-    _new_respondent_session()
+    # 2) coba xlsxwriter
+    bio = BytesIO()
+    try:
+        with pd.ExcelWriter(bio, engine="xlsxwriter") as writer:
+            df_items_long.to_excel(writer, index=False, sheet_name="Items_by_Quadrant")
+            df_dims_long.to_excel(writer, index=False, sheet_name="Dims_by_Quadrant")
+        return bio.getvalue(), items_csv_bytes, dims_csv_bytes, "xlsx"
+    except Exception:
+        pass
 
-if "admin_authed" not in st.session_state:
-    st.session_state.admin_authed = False
-if "admin_pwd_attempt" not in st.session_state:
-    st.session_state.admin_pwd_attempt = False
-if "admin_username" not in st.session_state:
-    st.session_state.admin_username = ""
-if "admin_platform_scope" not in st.session_state:
-    st.session_state.admin_platform_scope = None
+    # 3) fallback: ZIP berisi 2 CSV
+    zbio = BytesIO()
+    with zipfile.ZipFile(zbio, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr("kuadran_items.csv", items_csv_bytes)
+        zf.writestr("kuadran_dimensions.csv", dims_csv_bytes)
 
-_run_scroll_to_top_if_requested()
-_ensure_default_radio_state()
+    return zbio.getvalue(), items_csv_bytes, dims_csv_bytes, "zip"
 
 
 def render_home():
@@ -1830,7 +1833,7 @@ def render_admin_dashboard():
         # DOWNLOAD (Kuadran)
         # =========================
             st.subheader("Kuadran — Export Hasil")
-            xlsx_bytes, items_csv_bytes, dims_csv_bytes = _make_quadrant_export_bytes(
+            xlsx_or_zip_bytes, items_csv_bytes, dims_csv_bytes, export_kind = _make_quadrant_export_bytes(
                 quad_order,
                 quad_v1_items, quad_v2_items,
                 quad_v1_dims, quad_v2_dims,
@@ -1838,13 +1841,22 @@ def render_admin_dashboard():
 
             d1, d2, d3 = st.columns([1.6, 1, 1])
             with d1:
-                st.download_button(
-                    label="⬇️ Download Kuadran (Excel: Items + Dimensions)",
-                    data=xlsx_bytes,
-                    file_name="kuadran_items_dimensions.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    use_container_width=True,
-                )
+                if export_kind == "xlsx":
+                    st.download_button(
+                        label="⬇️ Download Kuadran (Excel: Items + Dimensions)",
+                        data=xlsx_or_zip_bytes,
+                        file_name="kuadran_items_dimensions.xlsx",
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        use_container_width=True,
+                    )
+                else:
+                    st.download_button(
+                        label="⬇️ Download Kuadran (ZIP fallback: 2 CSV)",
+                        data=xlsx_or_zip_bytes,
+                        file_name="kuadran_items_dimensions.zip",
+                        mime="application/zip",
+                        use_container_width=True,
+                    )
             with d2:
                 st.download_button(
                     label="⬇️ Items (CSV)",

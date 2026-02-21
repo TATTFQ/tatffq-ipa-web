@@ -591,25 +591,34 @@ def compute_stats_and_ipa(df_flat: pd.DataFrame):
             return "III - Low Priority"
         return "IV - Possible Overkill"
 
-    # --- Versi 2 (dengan diagonal): pakai diagonal y = x + b lewat (x_cut, y_cut) ---
-    # Region sesuai label plot trimmed:
-    # Q1: y>=y_cut DAN y>=diag
-    # Q2: y>=y_cut DAN y<diag
-    # Q3: y<y_cut DAN y<diag
-    # Q4: sisanya
-    b = y_cut - x_cut
+    # --- Versi 2 (dengan diagonal): aturan sesuai definisi user ---
+# Q1: semua titik DI ATAS diagonal
+# Q2: DI BAWAH diagonal & DI ATAS garis horizontal (y_cut)
+# Q3: DI BAWAH diagonal & DI KIRI garis vertikal (x_cut)
+# Q4: DI BAWAH diagonal & DI BAWAH horizontal (y_cut) & DI KANAN vertikal (x_cut)
+b = y_cut - x_cut
 
-    def quadrant_v2(x: float, y: float) -> str:
-        if pd.isna(x) or pd.isna(y):
-            return "NA"
-        y_diag = x + b
-        if (y >= y_cut) and (y >= y_diag):
-            return "I - Concentrate Here"
-        if (y >= y_cut) and (y < y_diag):
-            return "II - Keep Up the Good Work"
-        if (y < y_cut) and (y < y_diag):
-            return "III - Low Priority"
-        return "IV - Possible Overkill"
+def quadrant_v2(x: float, y: float) -> str:
+    if pd.isna(x) or pd.isna(y):
+        return "NA"
+
+    y_diag = x + b
+
+    # Q1: above diagonal
+    if y >= y_diag:
+        return "I - Concentrate Here"
+
+    # below diagonal:
+    # Q2: above horizontal
+    if y >= y_cut:
+        return "II - Keep Up the Good Work"
+
+    # Q3: left of vertical
+    if x < x_cut:
+        return "III - Low Priority"
+
+    # Q4: remaining (below diag, below horizontal, right of vertical)
+    return "IV - Possible Overkill"
 
     stats["Quadrant_v1"] = [quadrant_v1(x, y) for x, y in zip(stats["Performance_mean"], stats["Importance_mean"])]
     stats["Quadrant_v2"] = [quadrant_v2(x, y) for x, y in zip(stats["Performance_mean"], stats["Importance_mean"])]
@@ -687,20 +696,27 @@ def compute_dimension_stats_and_ipa(df_flat: pd.DataFrame):
             return "III - Low Priority"
         return "IV - Possible Overkill"
 
-    # Versi 2: diagonal
-    b = y_cut - x_cut
+   # Versi 2: diagonal
+b = y_cut - x_cut
 
-    def quadrant_v2(x: float, y: float) -> str:
-        if pd.isna(x) or pd.isna(y):
-            return "NA"
-        y_diag = x + b
-        if (y >= y_cut) and (y >= y_diag):
-            return "I - Concentrate Here"
-        if (y >= y_cut) and (y < y_diag):
-            return "II - Keep Up the Good Work"
-        if (y < y_cut) and (y < y_diag):
-            return "III - Low Priority"
-        return "IV - Possible Overkill"
+def quadrant_v2(x: float, y: float) -> str:
+    if pd.isna(x) or pd.isna(y):
+        return "NA"
+
+    y_diag = x + b
+
+    # Q1: above diagonal
+    if y >= y_diag:
+        return "I - Concentrate Here"
+
+    # below diagonal
+    if y >= y_cut:
+        return "II - Keep Up the Good Work"
+
+    if x < x_cut:
+        return "III - Low Priority"
+
+    return "IV - Possible Overkill"
 
     dim_stats["Quadrant_v1"] = [quadrant_v1(x, y) for x, y in zip(dim_stats["Performance_mean"], dim_stats["Importance_mean"])]
     dim_stats["Quadrant_v2"] = [quadrant_v2(x, y) for x, y in zip(dim_stats["Performance_mean"], dim_stats["Importance_mean"])]
@@ -1531,15 +1547,15 @@ def render_admin_dashboard():
             st.subheader("Statistik per item (min/max/mean) + GAP(P-I) + Kuadran (Versi 1 & 2)")
             stats_show = _round_df_numeric(stats, 2)
             # opsional: taruh kuadran bersebelahan dan lebih enak dibaca
-            cols_front = [
+           ordered_cols = [
                 "Item",
-                "Performance_mean", "Importance_mean", "Gap_mean(P-I)",
+                "Performance_min", "Performance_max", "Performance_mean",
+                "Importance_min", "Importance_max", "Importance_mean",
+                "Gap_mean(P-I)",
                 "Quadrant_v1", "Quadrant_v2",
-                "Performance_min", "Performance_max",
-                "Importance_min", "Importance_max",
             ]
-            cols_front = [c for c in cols_front if c in stats_show.columns]
-            stats_show = stats_show.reindex(columns=cols_front + [c for c in stats_show.columns if c not in cols_front])
+            ordered_cols = [c for c in ordered_cols if c in stats_show.columns]
+            stats_show = stats_show.reindex(columns=ordered_cols + [c for c in stats_show.columns if c not in ordered_cols])
 
             st.dataframe(stats_show.sort_values("Gap_mean(P-I)", ascending=True), use_container_width=True)
 
@@ -1556,16 +1572,19 @@ def render_admin_dashboard():
 
             st.subheader("Statistik per dimensi (min/max/mean) + GAP(P-I) + Kuadran (Versi 1 & 2)")
             dim_show = _round_df_numeric(dim_stats, 2)
-            cols_front = [
+            ordered_cols = [
                 "Dimension", "Dimension_name",
-                "Performance_mean", "Importance_mean", "Gap_mean(P-I)",
+                "Performance_min", "Performance_max", "Performance_mean",
+                "Importance_min", "Importance_max", "Importance_mean",
+                "Gap_mean(P-I)",
                 "Quadrant_v1", "Quadrant_v2",
-                "n_items",
-                "Performance_min", "Performance_max",
-                "Importance_min", "Importance_max",
             ]
-            cols_front = [c for c in cols_front if c in dim_show.columns]
-            dim_show = dim_show.reindex(columns=cols_front + [c for c in dim_show.columns if c not in cols_front])
+            # kalau ingin n_items tetap tampil, taruh sebelum gap atau setelah dimension_name (opsional)
+            if "n_items" in dim_show.columns:
+                ordered_cols.insert(2, "n_items")
+
+            ordered_cols = [c for c in ordered_cols if c in dim_show.columns]
+            dim_show = dim_show.reindex(columns=ordered_cols + [c for c in dim_show.columns if c not in ordered_cols])
 
             st.dataframe(dim_show.sort_values("Gap_mean(P-I)", ascending=True), use_container_width=True)
 

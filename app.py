@@ -19,6 +19,14 @@ st.set_page_config(page_title="TATTFQ Web Survey", layout="wide")
 DB_URL = st.secrets.get("SUPABASE_DB_URL", os.getenv("SUPABASE_DB_URL", ""))
 ADMIN_PASSWORD = st.secrets.get("ADMIN_PASSWORD", os.getenv("ADMIN_PASSWORD", ""))
 
+# === ADDED: Admin accounts (username+password) + scope ===
+ADMIN_USERS = {
+    "admin_general": {"password": "admin123", "scope": "ALL"},
+    "admin_alodokter": {"password": "admin_alodokter123", "scope": "Alodokter"},
+    "admin_gooddoctor": {"password": "admin_gooddoctor123", "scope": "Good Doctor"},
+    "admin_halodoc": {"password": "admin_halodoc123", "scope": "Halodoc"},
+}
+
 if not DB_URL:
     st.error("DB belum dikonfigurasi. Set SUPABASE_DB_URL di Streamlit Secrets / env var.")
     st.stop()
@@ -247,6 +255,9 @@ LAST_USE_OPTS = [
     "Dalam 1 tahun terakhir",
     "Lebih dari 1 tahun yang lalu",
 ]
+
+# === ADDED: platform dropdown options ===
+PLATFORM_OPTS = ["", "Alodokter", "Good Doctor", "Halodoc"]
 
 # =========================
 # UX helpers
@@ -730,6 +741,12 @@ if "admin_authed" not in st.session_state:
 if "admin_pwd_attempt" not in st.session_state:
     st.session_state.admin_pwd_attempt = False
 
+# === ADDED: store admin identity + scope ===
+if "admin_username" not in st.session_state:
+    st.session_state.admin_username = ""
+if "admin_scope" not in st.session_state:
+    st.session_state.admin_scope = None  # "ALL" atau nama platform
+
 _run_scroll_to_top_if_requested()
 _ensure_default_radio_state()
 
@@ -794,7 +811,12 @@ def render_respondent():
             if specialty == "Lainnya":
                 specialty_other = st.text_input("Lainnya (isi bidang spesialisasi)", value=prof.get("specialty_other", ""))
 
-        platform = st.text_input("Aplikasi/Platform Telemedicine yang digunakan", value=prof.get("platform", ""), placeholder="misal: Good Doctor, Halodoc, Alodokter, dll.")
+        # === CHANGED: platform -> dropdown + label changed ===
+        platform = st.selectbox(
+            "Aplikasi/Platform Telemedicine yang akan dinilai",
+            PLATFORM_OPTS,
+            index=PLATFORM_OPTS.index(prof.get("platform", "")) if prof.get("platform", "") in PLATFORM_OPTS else 0
+        )
 
         c1, c2, c3 = st.columns(3)
         with c1:
@@ -834,6 +856,8 @@ def render_respondent():
         if not age: missing.append("Usia")
         if not specialty: missing.append("Bidang spesialisasi")
         if specialty == "Lainnya" and not specialty_other.strip(): missing.append("Spesialisasi (Lainnya)")
+        # === ADDED: platform required ===
+        if not platform: missing.append("Aplikasi/Platform Telemedicine yang akan dinilai")
         if not tele_dur: missing.append("Lama menggunakan telemedicine")
         if not tele_freq: missing.append("Frekuensi telemedicine")
         if not tele_last: missing.append("Terakhir menggunakan telemedicine")
@@ -950,27 +974,35 @@ def render_admin_login():
         _go_home()
         st.rerun()
 
-    if not ADMIN_PASSWORD:
-        st.warning("ADMIN_PASSWORD belum diset di Secrets/env. Set dulu agar dashboard aman.")
-
-    pwd = st.text_input("Admin password", type="password")
+    # === CHANGED: username + password login ===
+    username = st.text_input("Username")
+    pwd = st.text_input("Password", type="password")
 
     col1, col2 = st.columns([1, 1])
     with col1:
         if st.button("Masuk", type="primary", use_container_width=True):
             st.session_state.admin_pwd_attempt = True
-            if pwd == ADMIN_PASSWORD and ADMIN_PASSWORD != "":
+            u = (username or "").strip()
+            p = (pwd or "").strip()
+
+            if u in ADMIN_USERS and ADMIN_USERS[u]["password"] == p:
                 st.session_state.admin_authed = True
+                st.session_state.admin_username = u
+                st.session_state.admin_scope = ADMIN_USERS[u]["scope"]  # "ALL" / platform
                 st.session_state.view = "admin"
                 _request_scroll_to_top()
                 st.rerun()
             else:
                 st.session_state.admin_authed = False
-                st.error("Password salah! Isi password dengan benar!")
+                st.session_state.admin_username = ""
+                st.session_state.admin_scope = None
+                st.error("Username atau password salah!")
     with col2:
         if st.button("Reset", use_container_width=True):
             st.session_state.admin_pwd_attempt = False
             st.session_state.admin_authed = False
+            st.session_state.admin_username = ""
+            st.session_state.admin_scope = None
             st.rerun()
 
 def render_admin_dashboard():
@@ -980,56 +1012,76 @@ def render_admin_dashboard():
     with top_left:
         if st.button("⬅ Kembali ke Halaman Utama"):
             st.session_state.admin_authed = False
+            st.session_state.admin_username = ""
+            st.session_state.admin_scope = None
             _go_home()
             st.rerun()
     with top_right:
         if st.button("🚪 Logout"):
             st.session_state.admin_authed = False
+            st.session_state.admin_username = ""
+            st.session_state.admin_scope = None
             st.session_state.view = "admin_login"
             _request_scroll_to_top()
             st.rerun()
 
     st.divider()
 
-    st.subheader("Hapus Semua Data")
-    st.caption("Aksi ini akan menghapus SEMUA respons di tabel responses dan tidak bisa dibatalkan.")
+    # === CHANGED: delete-all only for admin utama (scope ALL) ===
+    scope = st.session_state.get("admin_scope")
 
-    if "confirm_delete_all" not in st.session_state:
-        st.session_state.confirm_delete_all = False
-    if "delete_confirm_text" not in st.session_state:
-        st.session_state.delete_confirm_text = ""
-    if "delete_all_done" not in st.session_state:
-        st.session_state.delete_all_done = False
+    if scope == "ALL":
+        st.subheader("Hapus Semua Data")
+        st.caption("Aksi ini akan menghapus SEMUA respons di tabel responses dan tidak bisa dibatalkan.")
 
-    if st.session_state.delete_all_done:
-        st.success("Semua data berhasil dihapus.")
-        st.session_state.delete_all_done = False
+        if "confirm_delete_all" not in st.session_state:
+            st.session_state.confirm_delete_all = False
+        if "delete_confirm_text" not in st.session_state:
+            st.session_state.delete_confirm_text = ""
+        if "delete_all_done" not in st.session_state:
+            st.session_state.delete_all_done = False
 
-    colA, colB = st.columns([1, 3])
-    with colA:
-        if st.button("🗑️ Hapus semua data", type="secondary"):
-            st.session_state.confirm_delete_all = True
+        if st.session_state.delete_all_done:
+            st.success("Semua data berhasil dihapus.")
+            st.session_state.delete_all_done = False
 
-    if st.session_state.confirm_delete_all:
-        st.warning("Konfirmasi: Anda yakin ingin menghapus SEMUA data respons?", icon="⚠️")
-        confirm_text = st.text_input('Ketik "DELETE" untuk konfirmasi', key="delete_confirm_text")
-        can_delete = (confirm_text.strip().upper() == "DELETE")
+        colA, colB = st.columns([1, 3])
+        with colA:
+            if st.button("🗑️ Hapus semua data", type="secondary"):
+                st.session_state.confirm_delete_all = True
 
-        c1, c2 = st.columns(2)
-        with c1:
-            st.button(
-                "✅ Ya, hapus sekarang",
-                type="primary",
-                disabled=not can_delete,
-                on_click=_confirm_delete_all,
-            )
-        with c2:
-            st.button("❌ Batal", on_click=_cancel_delete_all)
+        if st.session_state.confirm_delete_all:
+            st.warning("Konfirmasi: Anda yakin ingin menghapus SEMUA data respons?", icon="⚠️")
+            confirm_text = st.text_input('Ketik "DELETE" untuk konfirmasi', key="delete_confirm_text")
+            can_delete = (confirm_text.strip().upper() == "DELETE")
 
-    st.divider()
+            c1, c2 = st.columns(2)
+            with c1:
+                st.button(
+                    "✅ Ya, hapus sekarang",
+                    type="primary",
+                    disabled=not can_delete,
+                    on_click=_confirm_delete_all,
+                )
+            with c2:
+                st.button("❌ Batal", on_click=_cancel_delete_all)
 
-    df = load_all_responses()
-    st.success(f"Total respon tersimpan: {len(df)}")
+        st.divider()
+    else:
+        st.caption("Anda login sebagai Admin Provider. Aksi penghapusan data hanya tersedia untuk Admin Utama.")
+        st.divider()
+
+    # === CHANGED: load & filter by platform scope ===
+    df_all = load_all_responses()
+
+    if scope and scope != "ALL":
+        df = df_all[df_all.get("meta_platform", "").astype(str) == str(scope)].copy()
+        st.info(f"Mode Admin Provider — Platform terpilih: **{scope}**")
+    else:
+        df = df_all
+        st.info("Mode Admin Utama — Menampilkan **SEMUA** platform")
+
+    st.success(f"Total respon tersimpan (terfilter): {len(df)}")
 
     tab1, tab2, tab3, tab4 = st.tabs(["Ringkasan & IPA", "Raw Data", "Kuadran", "Profil & Durasi"])
 

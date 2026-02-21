@@ -751,27 +751,181 @@ _run_scroll_to_top_if_requested()
 _ensure_default_radio_state()
 
 def render_home():
-    st.title("Telemedicine Application Task–Technology Fit Questionnaire (TATTFQ)")
-    st.caption("Pilih peran Anda untuk melanjutkan.")
+    # =========================
+    # STYLE (CSS)
+    # =========================
+    st.markdown(
+        """
+        <style>
+        /* Page padding */
+        .block-container { padding-top: 2.2rem; padding-bottom: 2rem; }
 
-    # flash message setelah submit
+        /* Hero title */
+        .hero-title {
+            font-size: 2.6rem;
+            font-weight: 800;
+            line-height: 1.12;
+            margin-bottom: .4rem;
+        }
+        .hero-subtitle {
+            font-size: 1.05rem;
+            opacity: .85;
+            margin-bottom: 1.1rem;
+        }
+
+        /* Cards */
+        .card {
+            border: 1px solid rgba(255,255,255,0.08);
+            background: rgba(255,255,255,0.03);
+            border-radius: 18px;
+            padding: 18px 18px 14px 18px;
+            box-shadow: 0 6px 22px rgba(0,0,0,0.10);
+        }
+        .card h3 {
+            margin: 0 0 .25rem 0;
+            font-size: 1.25rem;
+        }
+        .card p {
+            margin: 0;
+            opacity: .85;
+            font-size: .96rem;
+        }
+
+        /* Make buttons bigger */
+        div.stButton > button {
+            height: 3.05rem;
+            border-radius: 14px;
+            font-weight: 700;
+            width: 100%;
+        }
+
+        /* Small badges */
+        .badge {
+            display: inline-block;
+            padding: .25rem .55rem;
+            border-radius: 999px;
+            font-size: .78rem;
+            font-weight: 700;
+            background: rgba(255,255,255,0.08);
+            border: 1px solid rgba(255,255,255,0.10);
+            margin-right: .35rem;
+        }
+
+        /* Divider spacing */
+        hr { margin: 1.2rem 0; }
+
+        /* Footer */
+        .footer {
+            opacity: .7;
+            font-size: .9rem;
+            margin-top: 1.5rem;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
+
+    # =========================
+    # HERO (Title + Subtitle)
+    # =========================
+    st.markdown(
+        """
+        <div class="hero-title">Telemedicine Application Task–Technology Fit Questionnaire (TATTFQ)</div>
+        <div class="hero-subtitle">
+            Survei singkat untuk menilai kesesuaian tugas klinis dengan fitur/teknologi aplikasi telemedicine,
+            dari perspektif <b>physician</b>.
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+    # =========================
+    # HERO IMAGE (via URL)
+    # =========================
+    HERO_IMG_URL = "https://images.unsplash.com/photo-1580281657527-47f249e8f8a3?auto=format&fit=crop&w=1600&q=80"
+    st.image(HERO_IMG_URL, use_container_width=True)
+
+    # =========================
+    # FLASH MESSAGE (after submit)
+    # =========================
     if st.session_state.get("flash_success"):
         st.success(st.session_state["flash_success"])
         del st.session_state["flash_success"]
 
-    c1, c2 = st.columns(2)
+    # =========================
+    # FEATURE BADGES
+    # =========================
+    st.markdown(
+        """
+        <span class="badge">📌 Importance vs Performance</span>
+        <span class="badge">📊 Otomatis min/max/mean</span>
+        <span class="badge">🧮 Gap (P−I)</span>
+        <span class="badge">🔐 Admin role-based</span>
+        """,
+        unsafe_allow_html=True
+    )
+
+    st.write("")
+
+    # =========================
+    # ROLE CARDS + BUTTONS
+    # =========================
+    c1, c2 = st.columns(2, gap="large")
+
     with c1:
-        if st.button("👤 Responden", type="primary", use_container_width=True):
+        st.markdown(
+            """
+            <div class="card">
+                <h3>👤 Responden</h3>
+                <p>Isi profil singkat, lalu jawab <b>Performance</b> & <b>Importance</b> untuk setiap item.</p>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+        if st.button("Mulai Mengisi Kuesioner", type="primary"):
             st.session_state.view = "respondent"
-            _new_respondent_session()  # mulai sesi baru + start timer + kode otomatis
+            _new_respondent_session()
             _request_scroll_to_top()
             st.rerun()
+
     with c2:
-        if st.button("🔐 Admin", type="secondary", use_container_width=True):
+        st.markdown(
+            """
+            <div class="card">
+                <h3>🔐 Admin</h3>
+                <p>Lihat ringkasan, tabel statistik, kuadran IPA, profil responden, dan raw data.</p>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+        if st.button("Masuk Admin Dashboard", type="secondary"):
             st.session_state.view = "admin_login"
             st.session_state.admin_pwd_attempt = False
             _request_scroll_to_top()
             st.rerun()
+
+    st.divider()
+
+    # =========================
+    # EXTRA INFO SECTION
+    # =========================
+    st.subheader("Petunjuk singkat")
+    st.markdown(
+        """
+        - Kuesioner terdiri dari **3 tahap**: Profil → Performance → Importance.  
+        - Skala menggunakan **Likert 1–6** (tanpa nilai tengah) agar lebih jelas preferensinya.  
+        - Setelah submit, data otomatis direkap untuk **IPA (data-centered)** dan statistik per item/dimensi.
+        """
+    )
+
+    st.markdown(
+        """
+        <div class="footer">
+            © TATTFQ Survey • Dibuat dengan Streamlit • Data tersimpan di database
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
 
 def render_respondent():
     st.title("Kuesioner TATTFQ — Responden")

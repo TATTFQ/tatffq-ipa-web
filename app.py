@@ -11,6 +11,9 @@ import streamlit.components.v1 as components
 from sqlalchemy import create_engine, text, bindparam
 from sqlalchemy.dialects.postgresql import JSONB
 
+from io import BytesIO
+import html
+
 # =========================
 # CONFIG
 # =========================
@@ -979,6 +982,114 @@ def _round_df_numeric(df_in: pd.DataFrame, decimals: int = 2) -> pd.DataFrame:
         df_out[num_cols] = df_out[num_cols].round(decimals)
     return df_out
 
+def _render_fixed_width_table(df: pd.DataFrame, col_widths=("50%", "50%")):
+    """
+    Render table HTML dengan lebar kolom fix agar Versi 1 & Versi 2 selalu rapi.
+    Teks panjang akan wrap (tidak melebar seenaknya).
+    """
+    if df is None or df.empty:
+        st.caption("Tidak ada data.")
+        return
+
+    # pastikan hanya 2 kolom
+    cols = list(df.columns)
+    if len(cols) != 2:
+        st.table(df)
+        return
+
+    # escape aman
+    df_safe = df.copy()
+    for c in cols:
+        df_safe[c] = df_safe[c].fillna("").astype(str).map(html.escape)
+
+    # HTML table fixed layout
+    table_html = f"""
+    <style>
+      .fixedtbl {{
+        width: 100%;
+        table-layout: fixed;
+        border-collapse: collapse;
+        font-size: 0.95rem;
+      }}
+      .fixedtbl th, .fixedtbl td {{
+        border: 1px solid rgba(0,0,0,0.08);
+        padding: 10px 12px;
+        vertical-align: top;
+        word-wrap: break-word;
+        overflow-wrap: anywhere;
+        white-space: normal;
+      }}
+      .fixedtbl th {{
+        background: rgba(0,0,0,0.03);
+        font-weight: 700;
+      }}
+    </style>
+    <table class="fixedtbl">
+      <thead>
+        <tr>
+          <th style="width:{col_widths[0]};">Versi 1</th>
+          <th style="width:{col_widths[1]};">Versi 2</th>
+        </tr>
+      </thead>
+      <tbody>
+    """
+
+    for _, row in df_safe.iterrows():
+        table_html += f"""
+        <tr>
+          <td>{row[cols[0]]}</td>
+          <td>{row[cols[1]]}</td>
+        </tr>
+        """
+
+    table_html += """
+      </tbody>
+    </table>
+    """
+    st.markdown(table_html, unsafe_allow_html=True)
+
+
+def _make_quadrant_export_bytes(
+    quad_order,
+    quad_v1_items, quad_v2_items,
+    quad_v1_dims, quad_v2_dims,
+):
+    """
+    Output: (xlsx_bytes, items_csv_bytes, dims_csv_bytes)
+    - Excel: 2 sheet (Items, Dimensions) format long
+    - CSV: masing-masing long
+    """
+    # ---- ITEMS long
+    items_rows = []
+    for q in quad_order:
+        for code in (quad_v1_items.get(q, []) or []):
+            items_rows.append({"Quadrant": q, "Version": "Versi 1", "Code": code, "Text": ITEM_TEXT.get(code, "")})
+        for code in (quad_v2_items.get(q, []) or []):
+            items_rows.append({"Quadrant": q, "Version": "Versi 2", "Code": code, "Text": ITEM_TEXT.get(code, "")})
+
+    df_items_long = pd.DataFrame(items_rows, columns=["Quadrant", "Version", "Code", "Text"])
+
+    # ---- DIMS long
+    dims_rows = []
+    for q in quad_order:
+        for abbr in (quad_v1_dims.get(q, []) or []):
+            dims_rows.append({"Quadrant": q, "Version": "Versi 1", "Code": abbr, "Name": DIM_NAME_BY_ABBR.get(abbr, "")})
+        for abbr in (quad_v2_dims.get(q, []) or []):
+            dims_rows.append({"Quadrant": q, "Version": "Versi 2", "Code": abbr, "Name": DIM_NAME_BY_ABBR.get(abbr, "")})
+
+    df_dims_long = pd.DataFrame(dims_rows, columns=["Quadrant", "Version", "Code", "Name"])
+
+    # ---- Excel bytes
+    bio = BytesIO()
+    with pd.ExcelWriter(bio, engine="openpyxl") as writer:
+        df_items_long.to_excel(writer, index=False, sheet_name="Items_by_Quadrant")
+        df_dims_long.to_excel(writer, index=False, sheet_name="Dims_by_Quadrant")
+    xlsx_bytes = bio.getvalue()
+
+    items_csv_bytes = df_items_long.to_csv(index=False).encode("utf-8")
+    dims_csv_bytes = df_dims_long.to_csv(index=False).encode("utf-8")
+
+    return xlsx_bytes, items_csv_bytes, dims_csv_bytes
 
 # =========================
 # APP STATE + ROUTING
@@ -1715,9 +1826,47 @@ def render_admin_dashboard():
                     R += [""] * (n - len(R))
                 return pd.DataFrame({"Versi 1": L, "Versi 2": R})
 
-            # =========================
-            # ITEMS
-            # =========================
+        # =========================
+        # DOWNLOAD (Kuadran)
+        # =========================
+            st.subheader("Kuadran — Export Hasil")
+            xlsx_bytes, items_csv_bytes, dims_csv_bytes = _make_quadrant_export_bytes(
+                quad_order,
+                quad_v1_items, quad_v2_items,
+                quad_v1_dims, quad_v2_dims,
+            )
+
+            d1, d2, d3 = st.columns([1.6, 1, 1])
+            with d1:
+                st.download_button(
+                    label="⬇️ Download Kuadran (Excel: Items + Dimensions)",
+                    data=xlsx_bytes,
+                    file_name="kuadran_items_dimensions.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    use_container_width=True,
+                )
+            with d2:
+                st.download_button(
+                    label="⬇️ Items (CSV)",
+                    data=items_csv_bytes,
+                    file_name="kuadran_items.csv",
+                    mime="text/csv",
+                    use_container_width=True,
+            )
+            with d3:
+                st.download_button(
+                    label="⬇️ Dimensions (CSV)",
+                    data=dims_csv_bytes,
+                    file_name="kuadran_dimensions.csv",
+                    mime="text/csv",
+                    use_container_width=True,
+                )
+
+            st.divider()
+
+        # =========================
+        # ITEMS
+        # =========================
             st.subheader("Daftar item per kuadran (Versi 1 vs Versi 2)")
 
             for q in quad_order:
@@ -1733,8 +1882,8 @@ def render_admin_dashboard():
                     right_fmt=lambda code: f"{code}: {ITEM_TEXT.get(code, '')}",
                 )
 
-                # ✅ st.table agar teks wrap & tidak terpotong
-                st.table(df_cmp)
+                # ✅ render fixed width (50/50) agar semua kuadran rapi
+                _render_fixed_width_table(df_cmp, col_widths=("50%", "50%"))
 
             st.divider()
 
@@ -1756,8 +1905,8 @@ def render_admin_dashboard():
                     right_fmt=lambda abbr: f"{abbr}: {DIM_NAME_BY_ABBR.get(abbr, '')}",
                 )
 
-                # ✅ st.table agar teks wrap & tidak terpotong
-                st.table(df_cmp)
+                # ✅ render fixed width (50/50) agar semua kuadran rapi
+                _render_fixed_width_table(df_cmp, col_widths=("50%", "50%"))
 
     with tab4:
         if len(df) == 0:

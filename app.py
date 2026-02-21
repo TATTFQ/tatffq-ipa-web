@@ -673,10 +673,11 @@ def compute_dimension_stats_and_ipa(df_flat: pd.DataFrame):
     dim_stats = pd.DataFrame(rows)
     dim_stats["Gap_mean(P-I)"] = dim_stats["Performance_mean"] - dim_stats["Importance_mean"]
 
+    # cut-off data-centered (untuk dimensi)
     x_cut = float(dim_stats["Performance_mean"].mean(skipna=True))
     y_cut = float(dim_stats["Importance_mean"].mean(skipna=True))
 
-    # Versi 1: klasik
+    # --- Versi 1: klasik ---
     def quadrant_v1(x: float, y: float) -> str:
         if pd.isna(x) or pd.isna(y):
             return "NA"
@@ -688,30 +689,36 @@ def compute_dimension_stats_and_ipa(df_flat: pd.DataFrame):
             return "III - Low Priority"
         return "IV - Possible Overkill"
 
-   # Versi 2: diagonal
-b = y_cut - x_cut
+    # --- Versi 2: diagonal (y = x + b, lewat (x_cut, y_cut)) ---
+    b = y_cut - x_cut
 
-def quadrant_v2(x: float, y: float) -> str:
-    if pd.isna(x) or pd.isna(y):
-        return "NA"
+    def quadrant_v2(x: float, y: float) -> str:
+        if pd.isna(x) or pd.isna(y):
+            return "NA"
 
-    y_diag = x + b
+        y_diag = x + b
 
-    # Q1: above diagonal
-    if y >= y_diag:
-        return "I - Concentrate Here"
+        # Q1: di atas diagonal
+        if y >= y_diag:
+            return "I - Concentrate Here"
 
-    # below diagonal
-    if y >= y_cut:
-        return "II - Keep Up the Good Work"
+        # di bawah diagonal:
+        if y >= y_cut:
+            return "II - Keep Up the Good Work"
 
-    if x < x_cut:
-        return "III - Low Priority"
+        if x < x_cut:
+            return "III - Low Priority"
 
-    return "IV - Possible Overkill"
+        return "IV - Possible Overkill"
 
-    dim_stats["Quadrant_v1"] = [quadrant_v1(x, y) for x, y in zip(dim_stats["Performance_mean"], dim_stats["Importance_mean"])]
-    dim_stats["Quadrant_v2"] = [quadrant_v2(x, y) for x, y in zip(dim_stats["Performance_mean"], dim_stats["Importance_mean"])]
+    dim_stats["Quadrant_v1"] = [
+        quadrant_v1(x, y)
+        for x, y in zip(dim_stats["Performance_mean"], dim_stats["Importance_mean"])
+    ]
+    dim_stats["Quadrant_v2"] = [
+        quadrant_v2(x, y)
+        for x, y in zip(dim_stats["Performance_mean"], dim_stats["Importance_mean"])
+    ]
 
     quad_lists_v1 = {q: dim_stats.loc[dim_stats["Quadrant_v1"] == q, "Dimension"].tolist() for q in quad_order}
     quad_lists_v2 = {q: dim_stats.loc[dim_stats["Quadrant_v2"] == q, "Dimension"].tolist() for q in quad_order}

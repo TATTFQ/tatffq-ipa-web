@@ -1538,8 +1538,8 @@ def render_admin_dashboard():
 
             st.subheader("Statistik per item (min/max/mean) + GAP(P-I) + Kuadran (Versi 1 & 2)")
             stats_show = _round_df_numeric(stats, 2)
-            # opsional: taruh kuadran bersebelahan dan lebih enak dibaca
-           ordered_cols = [
+
+            ordered_cols = [
                 "Item",
                 "Performance_min", "Performance_max", "Performance_mean",
                 "Importance_min", "Importance_max", "Importance_mean",
@@ -1547,9 +1547,14 @@ def render_admin_dashboard():
                 "Quadrant_v1", "Quadrant_v2",
             ]
             ordered_cols = [c for c in ordered_cols if c in stats_show.columns]
-            stats_show = stats_show.reindex(columns=ordered_cols + [c for c in stats_show.columns if c not in ordered_cols])
+            stats_show = stats_show.reindex(
+                columns=ordered_cols + [c for c in stats_show.columns if c not in ordered_cols]
+            )
 
-            st.dataframe(stats_show.sort_values("Gap_mean(P-I)", ascending=True), use_container_width=True)
+            st.dataframe(
+                stats_show.sort_values("Gap_mean(P-I)", ascending=True),
+                use_container_width=True
+            )
 
             # (plot versi 1 & versi 2 Anda tetap seperti sekarang, tidak perlu diubah)
 

@@ -337,7 +337,7 @@ def _new_respondent_session():
         "age": "",
         "specialty": "",
         "specialty_other": "",
-        "platform": "",  # <-- platform yang akan dinilai (dropdown)
+        "platform": "",
         "telemedicine_duration": "",
         "telemedicine_frequency": "",
         "telemedicine_last_use": "",
@@ -346,7 +346,6 @@ def _new_respondent_session():
 
 
 def _reset_survey_state(go_home: bool = False):
-    # reset semua untuk responden
     for code in ITEM_CODES:
         st.session_state[f"perf_{code}"] = 1
         st.session_state[f"imp_{code}"] = 1
@@ -361,7 +360,7 @@ def _reset_survey_state(go_home: bool = False):
         "age": "",
         "specialty": "",
         "specialty_other": "",
-        "platform": "",  # <-- platform yang akan dinilai (dropdown)
+        "platform": "",
         "telemedicine_duration": "",
         "telemedicine_frequency": "",
         "telemedicine_last_use": "",
@@ -416,17 +415,14 @@ def insert_response(respondent_code, meta, perf_dict, imp_dict):
 
 
 def _confirm_and_submit():
-    # ambil jawaban terakhir importance
     st.session_state.imp = _sync_dict_from_widget("imp")
 
-    # hitung durasi (UTC)
     started = st.session_state.get("respondent_started_at")
     ended = datetime.now(timezone.utc)
     duration_sec = None
     if isinstance(started, datetime):
         duration_sec = (ended - started).total_seconds()
 
-    # gabungkan meta profil + timing
     profile = st.session_state.get("profile", {}) or {}
     specialty_final = profile.get("specialty", "")
     if specialty_final == "Lainnya":
@@ -436,7 +432,6 @@ def _confirm_and_submit():
         "gender": profile.get("gender", ""),
         "age": profile.get("age", ""),
         "specialty": specialty_final,
-        # platform yang dinilai disimpan ke meta_platform (dipakai filter admin)
         "platform": (profile.get("platform", "") or "").strip(),
         "telemedicine_duration": profile.get("telemedicine_duration", ""),
         "telemedicine_frequency": profile.get("telemedicine_frequency", ""),
@@ -453,17 +448,11 @@ def _confirm_and_submit():
         imp_dict=st.session_state.get("imp", {}),
     )
 
-    # flash message di Home (hindari st.rerun() di callback)
     st.session_state["flash_success"] = "Terima kasih! Jawaban Anda telah tersimpan."
     _reset_survey_state(go_home=True)
 
 
 def load_all_responses(limit=5000):
-    """
-    Load responses dari DB, flatten meta/perf/imp, plus kolom waktu untuk filtering periode admin.
-    Filter periode menggunakan Asia/Jakarta (WIB).
-    Prioritas waktu: meta_submitted_at_utc (jika ada) -> created_at (fallback).
-    """
     try:
         with engine.begin() as conn:
             rows = conn.execute(
@@ -488,25 +477,21 @@ def load_all_responses(limit=5000):
         perf = r.performance or {}
         imp = r.importance or {}
 
-        # created_at (UTC-aware)
         created_at_utc = pd.to_datetime(r.created_at, utc=True, errors="coerce")
         created_at_local = created_at_utc.tz_convert("Asia/Jakarta") if pd.notna(created_at_utc) else pd.NaT
 
-        # meta time (UTC-aware)
         started_at_utc = pd.to_datetime(meta.get("started_at_utc", ""), utc=True, errors="coerce")
         submitted_at_utc = pd.to_datetime(meta.get("submitted_at_utc", ""), utc=True, errors="coerce")
 
         started_at_local = started_at_utc.tz_convert("Asia/Jakarta") if pd.notna(started_at_utc) else pd.NaT
         submitted_at_local = submitted_at_utc.tz_convert("Asia/Jakarta") if pd.notna(submitted_at_utc) else pd.NaT
 
-        # effective time dipakai untuk filter (pakai submit kalau ada)
         effective_time_local = submitted_at_local if pd.notna(submitted_at_local) else created_at_local
 
         rec = {
             "id": r.id,
-            "created_at": created_at_utc,  # simpan UTC-aware
+            "created_at": created_at_utc,
             "respondent_code": r.respondent_code,
-            # tambahan kolom waktu
             "created_at_utc": created_at_utc,
             "created_at_local": created_at_local,
             "meta_started_at_utc_dt": started_at_utc,
@@ -793,11 +778,9 @@ def _build_quadrant_table_from_stats(stats_df: pd.DataFrame, label_col: str, qua
 if "view" not in st.session_state:
     st.session_state.view = "home"
 
-# init state untuk responden
 if "step" not in st.session_state:
     _new_respondent_session()
 
-# init state untuk admin
 if "admin_authed" not in st.session_state:
     st.session_state.admin_authed = False
 if "admin_pwd_attempt" not in st.session_state:
@@ -805,16 +788,13 @@ if "admin_pwd_attempt" not in st.session_state:
 if "admin_username" not in st.session_state:
     st.session_state.admin_username = ""
 if "admin_platform_scope" not in st.session_state:
-    st.session_state.admin_platform_scope = None  # None = semua (admin_general)
+    st.session_state.admin_platform_scope = None
 
 _run_scroll_to_top_if_requested()
 _ensure_default_radio_state()
 
 
 def render_home():
-    # =========================
-    # STYLE (CSS)
-    # =========================
     st.markdown(
         """
         <style>
@@ -870,9 +850,6 @@ def render_home():
         unsafe_allow_html=True
     )
 
-    # =========================
-    # TITLE
-    # =========================
     st.markdown(
         """
         <div class="hero-title">
@@ -885,27 +862,19 @@ def render_home():
         unsafe_allow_html=True
     )
 
-    # =========================
-    # FLASH MESSAGE
-    # =========================
     if st.session_state.get("flash_success"):
         st.success(st.session_state["flash_success"])
         del st.session_state["flash_success"]
 
     st.write("")
 
-    # =========================
-    # LAYOUT: IMAGE LEFT — BUTTONS RIGHT
-    # =========================
     col_left, col_right = st.columns([3, 1.4], gap="large")
 
-    # LEFT — IMAGE
     with col_left:
         HERO_IMG_FILE = "hero.png"
         hero_path = os.path.join(os.path.dirname(__file__), HERO_IMG_FILE)
 
         if os.path.exists(hero_path):
-            # Diperkecil untuk desktop/web
             st.image(hero_path, width=650)
         else:
             st.warning(
@@ -913,9 +882,7 @@ def render_home():
                 "Pastikan file berada di folder yang sama dengan app.py."
             )
 
-    # RIGHT — BUTTONS
     with col_right:
-
         st.markdown(
             """
             <div class="card">
@@ -950,9 +917,6 @@ def render_home():
             _request_scroll_to_top()
             st.rerun()
 
-    # =========================
-    # FOOTER
-    # =========================
     st.markdown(
         """
         <div class="footer">
@@ -970,8 +934,7 @@ def render_respondent():
         _go_home()
         st.rerun()
 
-    # indikator 3 tahap
-    step = st.session_state.get("step", 0)  # 0 profil, 1 perf, 2 imp
+    step = st.session_state.get("step", 0)
     st.progress(1 / 3 if step == 0 else (2 / 3 if step == 1 else 1.0))
     c1, c2, c3 = st.columns(3)
     with c1:
@@ -983,9 +946,6 @@ def render_respondent():
 
     st.divider()
 
-    # =========================
-    # STEP 0: PROFIL
-    # =========================
     if step == 0:
         st.header("Tahap 1 — Profil Responden")
 
@@ -1013,7 +973,6 @@ def render_respondent():
             if specialty == "Lainnya":
                 specialty_other = st.text_input("Lainnya (isi bidang spesialisasi)", value=prof.get("specialty_other", ""))
 
-        # platform dropdown
         platform = st.selectbox(
             "Aplikasi/Platform Telemedicine yang akan dinilai",
             PLATFORM_OPTS,
@@ -1040,7 +999,6 @@ def render_respondent():
                 index=LAST_USE_OPTS.index(prof.get("telemedicine_last_use", "")) if prof.get("telemedicine_last_use", "") in LAST_USE_OPTS else 0
             )
 
-        # simpan ke session
         st.session_state.profile = {
             "gender": gender,
             "age": age,
@@ -1052,7 +1010,6 @@ def render_respondent():
             "telemedicine_last_use": tele_last,
         }
 
-        # validasi minimal (dropdown wajib dipilih)
         missing = []
         if not gender:
             missing.append("Jenis kelamin")
@@ -1079,9 +1036,6 @@ def render_respondent():
             _request_scroll_to_top()
             st.rerun()
 
-    # =========================
-    # STEP 1: PERFORMANCE
-    # =========================
     elif step == 1:
         if st.session_state.get("_enter_step", False):
             if st.session_state.get("perf"):
@@ -1121,9 +1075,6 @@ def render_respondent():
                 _request_scroll_to_top()
                 st.rerun()
 
-    # =========================
-    # STEP 2: IMPORTANCE
-    # =========================
     else:
         if st.session_state.get("_enter_step", False):
             if st.session_state.get("imp"):
@@ -1198,7 +1149,7 @@ def render_admin_login():
             if user_info and pwd == user_info.get("password", ""):
                 st.session_state.admin_authed = True
                 st.session_state.admin_username = user
-                st.session_state.admin_platform_scope = user_info.get("platform", None)  # None = semua
+                st.session_state.admin_platform_scope = user_info.get("platform", None)
                 st.session_state.view = "admin"
                 _request_scroll_to_top()
                 st.rerun()
@@ -1287,25 +1238,16 @@ def render_admin_dashboard():
 
     st.divider()
 
-    # =========================
-    # LOAD + FILTER PLATFORM + FILTER PERIODE
-    # =========================
     df_all = load_all_responses()
-
     df = df_all.copy()
 
-    # Filter platform sesuai role admin
     if scope_platform:
         if "meta_platform" in df.columns:
             df = df[df["meta_platform"].fillna("").astype(str).str.strip() == scope_platform].copy()
         else:
             df = df.iloc[0:0].copy()
 
-    # =========================
-    # FILTER PERIODE (SEMUA ADMIN BISA PILIH)
-    # =========================
     st.subheader("Filter Periode Ringkasan")
-    # DIHILANGKAN keterangan panjang soal timezone & basis waktu, sesuai request user
     st.caption("Filter ini mempengaruhi semua tab (Ringkasan & IPA, Raw Data, Kuadran, Profil & Durasi).")
 
     if "admin_filter_mode" not in st.session_state:
@@ -1315,7 +1257,6 @@ def render_admin_dashboard():
     if "admin_filter_end" not in st.session_state:
         st.session_state.admin_filter_end = None
 
-    # default range dari data yang sudah terfilter platform
     effective = pd.to_datetime(df.get("effective_time_local", pd.Series(dtype="object")), errors="coerce")
     effective_nonnull = effective.dropna()
 
@@ -1363,11 +1304,9 @@ def render_admin_dashboard():
                 df = df[(df["_eff_date"] >= start_date) & (df["_eff_date"] <= end_date)].copy()
                 df.drop(columns=["_eff_date"], inplace=True, errors="ignore")
     else:
-        # reset state jika kembali ke semua data
         st.session_state.admin_filter_start = None
         st.session_state.admin_filter_end = None
 
-    # ringkasan jumlah
     if mode == "Filter periode" and start_date and end_date and (start_date <= end_date):
         st.success(f"Total respon (setelah filter): {len(df)}  — Periode: {start_date} s/d {end_date}")
     else:
@@ -1393,8 +1332,9 @@ def render_admin_dashboard():
             stats_show = _round_df_numeric(stats, 2)
             st.dataframe(stats_show.sort_values("Gap_mean(P-I)", ascending=True), use_container_width=True)
 
+            # ✅ PERUBAHAN: tampilkan diagonal alternatif (45° lewat titik mean global)
             st.subheader("Plot IPA (Data-centered) — Items")
-            fig = plot_ipa_items(stats, x_cut, y_cut, show_iso_diagonal=False)
+            fig = plot_ipa_items(stats, x_cut, y_cut, show_iso_diagonal=True)
             st.pyplot(fig, use_container_width=True)
 
             st.divider()
@@ -1410,8 +1350,9 @@ def render_admin_dashboard():
             dim_show = _round_df_numeric(dim_stats, 2)
             st.dataframe(dim_show.sort_values("Gap_mean(P-I)", ascending=True), use_container_width=True)
 
+            # ✅ PERUBAHAN: tampilkan diagonal alternatif (45° lewat titik mean global dimensi)
             st.subheader("Plot IPA (Data-centered) — Dimensions")
-            fig_dim = plot_ipa_dimensions(dim_stats, dx_cut, dy_cut, show_iso_diagonal=False)
+            fig_dim = plot_ipa_dimensions(dim_stats, dx_cut, dy_cut, show_iso_diagonal=True)
             st.pyplot(fig_dim, use_container_width=True)
 
     with tab2:
@@ -1423,7 +1364,6 @@ def render_admin_dashboard():
         else:
             show = df.copy()
 
-            # Kolom bantu internal untuk filtering/perhitungan tanggal — tidak ditampilkan di raw data
             helper_time_cols = [
                 "created_at_utc",
                 "created_at_local",
@@ -1435,14 +1375,12 @@ def render_admin_dashboard():
             ]
             show = show.drop(columns=[c for c in helper_time_cols if c in show.columns], errors="ignore")
 
-            # --- Hilangkan prefix "meta_" (tampilan saja)
             rename_map = {}
             for c in show.columns:
                 if c.startswith("meta_"):
                     rename_map[c] = c.replace("meta_", "", 1)
             show = show.rename(columns=rename_map)
 
-            # --- Rename waktu jadi sesuai request: started, submitted, duration
             show = show.rename(
                 columns={
                     "started_at_utc": "started",
@@ -1451,7 +1389,6 @@ def render_admin_dashboard():
                 }
             )
 
-            # --- Urutkan kolom depan: respondent_code, started, submitted, duration, lalu profil, lalu sisanya
             preferred_front = ["respondent_code", "started", "submitted", "duration"]
             preferred_profile = [
                 "age",
@@ -1469,7 +1406,6 @@ def render_admin_dashboard():
 
             show = show[front + prof + rest]
 
-            # Sorting: pakai submitted kalau ada, fallback created_at
             sort_col = "submitted" if "submitted" in show.columns else ("created_at" if "created_at" in show.columns else None)
             if sort_col:
                 show = show.sort_values(sort_col, ascending=False)

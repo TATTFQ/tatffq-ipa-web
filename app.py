@@ -1596,13 +1596,6 @@ def render_admin_dashboard():
             with c2:
                 st.metric("Importance cut-off (mean dim)", f"{dy_cut:.3f}")
 
-            st.subheader("Cut-off (Data-centered) — Dimensions")
-            c1, c2 = st.columns(2)
-            with c1:
-                st.metric("Performance cut-off (mean dim)", f"{dx_cut:.3f}")
-            with c2:
-                st.metric("Importance cut-off (mean dim)", f"{dy_cut:.3f}")
-
             st.subheader("Statistik per dimensi (min/max/mean) + GAP(P-I) + Kuadran (Versi 1 & 2)")
             dim_show = _round_df_numeric(dim_stats, 2)
             ordered_cols = [

@@ -544,11 +544,11 @@ def _confirm_delete_all():
 # =========================
 # MATPLOTLIB FONT CONFIG (GLOBAL)
 # =========================
-PLOT_FS_TITLE = 18
-PLOT_FS_AXIS  = 14
-PLOT_FS_TICK  = 12
-PLOT_FS_POINT = 10     # label titik (item/dim)
-PLOT_FS_QUAD  = 10     # label kuadran
+PLOT_FS_TITLE = 14
+PLOT_FS_AXIS  = 11
+PLOT_FS_TICK  = 10
+PLOT_FS_POINT = 8
+PLOT_FS_QUAD  = 8
 
 plt.rcParams.update({
     "font.size": PLOT_FS_TICK,
@@ -760,37 +760,44 @@ def _plot_quadrant_lines(ax, x_cut, y_cut, trimmed_like_example=False):
 # =========================
 def _annotate_quadrants(ax, x_cut, y_cut, trimmed_like_example=False):
     """
-    Label kuadran dengan font konsisten.
-    - Mode normal: pakai axes coordinates (pasti tampil).
-    - Mode diagonal+trimmed: pakai data coordinates + fallback agar Q2 tidak hilang.
+    Versi stabil:
+    - Selalu pakai axes coordinates (0–1)
+    - Tidak pernah keluar plot
+    - Tidak tergantung diagonal
     """
 
     q_fs = PLOT_FS_QUAD
-    q_bbox = dict(boxstyle="round,pad=0.15", alpha=0.08, edgecolor="none")
+    q_bbox = dict(boxstyle="round,pad=0.12", alpha=0.06, edgecolor="none")
 
-    def _put_axes(xa, ya, text):
+    def _put(xa, ya, text):
         ax.text(
             xa, ya, text,
             transform=ax.transAxes,
-            ha="center", va="center",
+            ha="center",
+            va="center",
             fontsize=q_fs,
-            alpha=0.8,
             bbox=q_bbox,
             zorder=6,
-            clip_on=True
+            clip_on=True,
         )
 
-    def _put_data(xd, yd, text):
-        ax.text(
-            xd, yd, text,
-            transform=ax.transData,
-            ha="center", va="center",
-            fontsize=q_fs,
-            alpha=0.8,
-            bbox=q_bbox,
-            zorder=6,
-            clip_on=True
-        )
+    # teks dibuat lebih sempit supaya tidak melebar
+    txt_q1 = "Q1\nConcentrate"
+    txt_q2 = "Q2\nKeep Up"
+    txt_q3 = "Q3\nLow Priority"
+    txt_q4 = "Q4\nOverkill"
+
+    if not trimmed_like_example:
+        _put(0.25, 0.75, txt_q1)
+        _put(0.75, 0.75, txt_q2)
+        _put(0.25, 0.25, txt_q3)
+        _put(0.75, 0.25, txt_q4)
+    else:
+        # sedikit geser supaya enak dengan diagonal
+        _put(0.18, 0.68, txt_q1)
+        _put(0.78, 0.72, txt_q2)
+        _put(0.18, 0.18, txt_q3)
+        _put(0.72, 0.20, txt_q4)
 
     # =========================
     # MODE 1: Kuadran kotak biasa

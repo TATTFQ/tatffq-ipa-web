@@ -726,7 +726,7 @@ def compute_dimension_stats_and_ipa(df_flat: pd.DataFrame):
     return dim_stats, x_cut, y_cut, quad_lists_v1, quad_lists_v2
 
 
-def _plot_iso_diagonal(ax, x_cut, y_cut, xlim, ylim, with_endpoints=True):
+def _plot_iso_diagonal(ax, x_cut, y_cut, xlim, ylim, with_endpoints=False):
     """
     Garis diagonal 45°: y = x + b, melewati titik (x_cut, y_cut) -> b = y_cut - x_cut
     """
@@ -735,36 +735,28 @@ def _plot_iso_diagonal(ax, x_cut, y_cut, xlim, ylim, with_endpoints=True):
     y0 = x0 + b
     y1 = x1 + b
 
-    # clip agar tetap berada di rentang y-limit (biar rapi)
     ymin, ymax = ylim
 
     pts = []
-    # cek titik potong dengan batas-batas kotak plot
-    # 1) x = x0 => y = y0
     if ymin <= y0 <= ymax:
         pts.append((x0, y0))
-    # 2) x = x1 => y = y1
     if ymin <= y1 <= ymax:
         pts.append((x1, y1))
-    # 3) y = ymin => ymin = x + b => x = ymin - b
+
     xx = ymin - b
     if x0 <= xx <= x1:
         pts.append((xx, ymin))
-    # 4) y = ymax => x = ymax - b
+
     xx = ymax - b
     if x0 <= xx <= x1:
         pts.append((xx, ymax))
 
-    # ambil 2 titik unik paling ujung
     pts = list(dict.fromkeys(pts))
     if len(pts) >= 2:
-        # pilih yang paling kiri dan paling kanan (berdasarkan x)
         pts_sorted = sorted(pts, key=lambda t: t[0])
         pA, pB = pts_sorted[0], pts_sorted[-1]
-        if with_endpoints:
-            ax.plot([pA[0], pB[0]], [pA[1], pB[1]], linestyle="-", linewidth=2.2, marker="o")
-        else:
-            ax.plot([pA[0], pB[0]], [pA[1], pB[1]], linestyle="-", linewidth=2.2)
+        # ✅ tanpa marker ujung
+        ax.plot([pA[0], pB[0]], [pA[1], pB[1]], linestyle="-", linewidth=2.2)
     else:
         ax.plot([x0, x1], [y0, y1], linestyle="-", linewidth=2.2)
 
@@ -775,7 +767,7 @@ def _plot_quadrant_lines(ax, x_cut, y_cut, trimmed_like_example=False):
     - Trimmed (Versi 2): hanya gambar:
         * garis vertikal x=x_cut dari bawah sampai y_cut
         * garis horizontal y=y_cut dari x_cut sampai kanan
-      sehingga tidak ada garis pembagi kuadran di area atas/kiri diagonal (sesuai contoh).
+      ✅ tanpa marker lingkaran di ujung garis
     """
     x0, x1 = ax.get_xlim()
     y0, y1 = ax.get_ylim()
@@ -785,10 +777,10 @@ def _plot_quadrant_lines(ax, x_cut, y_cut, trimmed_like_example=False):
         ax.axhline(y_cut, linewidth=1.5)
         return
 
-    # vertikal: dari bawah -> y_cut
-    ax.plot([x_cut, x_cut], [y0, y_cut], linewidth=2.2, marker="o", markevery=[1])
-    # horizontal: dari x_cut -> kanan
-    ax.plot([x_cut, x1], [y_cut, y_cut], linewidth=2.2, marker="o", markevery=[1])
+    # ✅ vertikal: dari bawah -> y_cut (tanpa marker)
+    ax.plot([x_cut, x_cut], [y0, y_cut], linewidth=2.2)
+    # ✅ horizontal: dari x_cut -> kanan (tanpa marker)
+    ax.plot([x_cut, x1], [y_cut, y_cut], linewidth=2.2)
 
 
 # =========================
@@ -928,7 +920,7 @@ def plot_ipa_items(stats, x_cut, y_cut, show_iso_diagonal=False, trimmed_quadran
 
     # diagonal
     if show_iso_diagonal:
-        _plot_iso_diagonal(ax, x_cut, y_cut, ax.get_xlim(), ax.get_ylim(), with_endpoints=True)
+        _plot_iso_diagonal(ax, x_cut, y_cut, ax.get_xlim(), ax.get_ylim(), with_endpoints=False)
 
     # ✅ tambah label kuadran
     _annotate_quadrants(ax, x_cut, y_cut, trimmed_like_example=trimmed_quadrant_lines)

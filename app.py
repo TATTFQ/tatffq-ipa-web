@@ -855,10 +855,18 @@ def render_home():
     )
 
     # =========================
-    # HERO IMAGE (via URL) — diperkecil (tidak full width)
+    # HERO IMAGE (file lokal) — diperkecil (tidak full width)
     # =========================
-    HERO_IMG_URL = "https://images.unsplash.com/photo-1580281657527-47f249e8f8a3?auto=format&fit=crop&w=1600&q=80"
-    st.image(HERO_IMG_URL, width=900)
+    HERO_IMG_FILE = "Telemedicine Application Task–Technology Fit Questionnaire (TATTFQ)-2.png"
+    hero_path = os.path.join(os.path.dirname(__file__), HERO_IMG_FILE)
+
+    if os.path.exists(hero_path):
+        st.image(hero_path, width=900)
+    else:
+        st.warning(
+            f"Gambar hero tidak ditemukan: {HERO_IMG_FILE}. "
+            "Pastikan file gambar berada di folder yang sama dengan app.py (atau sesuaikan path)."
+        )
 
     # =========================
     # FLASH MESSAGE (after submit)
@@ -895,7 +903,7 @@ def render_home():
             """
             <div class="card">
                 <h3>🔐 Admin</h3>
-                <p>Lihat ringkasan, tabel statistik, kuadran IPA, profil responden, dan raw data.</p>
+                <p>Lihat hasil survei.</p>
             </div>
             """,
             unsafe_allow_html=True

@@ -1462,9 +1462,9 @@ def render_admin_dashboard():
     can_delete_all = (scope_platform is None)          # hanya admin_general
     can_delete_platform = (scope_platform is not None) # hanya admin provider
 
-# =========================
-# A) Hapus SEMUA data (admin_general)
-# =========================
+    # =========================
+    # A) Hapus SEMUA data (admin_general)
+    # =========================
     st.markdown("### A) Hapus semua data (khusus admin_general)")
     st.caption("Aksi ini akan menghapus SEMUA respons di tabel responses dan tidak bisa dibatalkan.")
 
@@ -1491,6 +1491,53 @@ def render_admin_dashboard():
             )
         with c2:
             st.button("❌ Batal", on_click=_cancel_delete_all)
+
+    st.divider()
+
+    # =========================
+    # B) Hapus data PLATFORM saja (admin provider)
+    # =========================
+    st.markdown("### B) Hapus data platform saya (khusus admin provider)")
+    if scope_platform:
+        st.caption(f"Aksi ini hanya menghapus respons dengan platform **{scope_platform}** dan tidak bisa dibatalkan.")
+    else:
+        st.caption("Login sebagai admin_general: fitur ini tidak diperlukan (silakan gunakan hapus semua data atau filter).")
+
+    colP1, colP2 = st.columns([1, 3])
+    with colP1:
+        if st.button(
+            f"🗑️ Hapus data {scope_platform}" if scope_platform else "🗑️ Hapus data platform",
+            type="secondary",
+            disabled=not can_delete_platform,
+        ):
+            st.session_state.confirm_delete_platform = True
+
+    if not can_delete_platform:
+        st.info("Catatan: Tombol ini hanya aktif untuk admin provider (mis. admin_gooddoctor).")
+
+    if st.session_state.confirm_delete_platform and scope_platform:
+        st.warning(
+            f"Konfirmasi: Anda yakin ingin menghapus SEMUA data untuk platform **{scope_platform}**?",
+            icon="⚠️"
+        )
+        confirm_text_plat = st.text_input(
+            f'Ketik "DELETE" untuk konfirmasi penghapusan data {scope_platform}',
+            key="delete_platform_confirm_text",
+        )
+        can_delete_plat = (confirm_text_plat.strip().upper() == "DELETE")
+
+        c1, c2 = st.columns(2)
+        with c1:
+            st.button(
+                "✅ Ya, hapus data platform",
+                type="primary",
+                disabled=not can_delete_plat,
+                on_click=_confirm_delete_platform,
+            )
+        with c2:
+            st.button("❌ Batal", on_click=_cancel_delete_platform)
+
+    st.divider()
 
 st.divider()
 

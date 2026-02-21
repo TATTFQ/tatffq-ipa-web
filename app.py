@@ -742,7 +742,7 @@ def _plot_quadrant_lines(ax, x_cut, y_cut, trimmed_like_example=False):
 
 
 # =========================
-# QUADRANT LABELS (UPDATED - PLACE IN CORRECT REGIONS WHEN DIAGONAL/TRIMMED)
+# QUADRANT LABELS (UPDATED - FONT AUTO SMALLER + NEVER CUT OFF)
 # =========================
 def _annotate_quadrants(ax, x_cut, y_cut, trimmed_like_example=False):
     """
@@ -750,36 +750,54 @@ def _annotate_quadrants(ax, x_cut, y_cut, trimmed_like_example=False):
     - Mode trimmed_like_example=True: label diposisikan berdasar koordinat DATA,
       agar jatuh di region poligon yang benar ketika ada diagonal + garis kuadran trimmed.
 
-      Definisi region (sesuai permintaan):
-        Q2 = di bawah diagonal & di atas garis horizontal (y >= y_cut, y < y_diag)
-        Q3 = di bawah diagonal & di kiri garis vertikal (x < x_cut, y < y_diag)
+    Perubahan (sesuai permintaan user):
+    - Ukuran font label kuadran dibuat lebih kecil dari label item/dimensi.
+    - Ukuran font otomatis menyesuaikan "besar kuadran" (berdasarkan ukuran axes),
+      supaya tidak terpotong/keluar batas.
     """
+
+    # --- AUTO FONT SIZE (lebih kecil dari item/dim labels) ---
+    # Item labels: 8, Dimension labels: 9 -> Quadrant harus < 8
+    # Kita pakai skala dari ukuran axes (dalam points), lalu clamp ke 5..7.
+    try:
+        fig = ax.figure
+        bbox_in = ax.get_window_extent().transformed(fig.dpi_scale_trans.inverted())  # inches
+        w_pt = bbox_in.width * 72.0
+        h_pt = bbox_in.height * 72.0
+        min_pt = min(w_pt, h_pt)
+        q_font = int(max(5, min(7, round(0.03 * min_pt))))  # adaptif, tapi tetap kecil
+    except Exception:
+        q_font = 6  # fallback aman
+
+    # bbox diperkecil biar tidak melebar keluar kuadran
+    q_bbox = dict(boxstyle="round,pad=0.08", alpha=0.06, edgecolor="none")
 
     def put_axes(xa, ya, text):
         ax.text(
             xa, ya, text,
             transform=ax.transAxes,
             ha="center", va="center",
-            fontsize=8, fontweight="normal",
+            fontsize=q_font, fontweight="normal",
             alpha=0.75, clip_on=True,
-            bbox=dict(boxstyle="round,pad=0.15", alpha=0.08, edgecolor="none"),
+            bbox=q_bbox,
         )
 
     def put_data(x, y, text):
         ax.text(
             x, y, text,
             ha="center", va="center",
-            fontsize=8, fontweight="normal",
+            fontsize=q_font, fontweight="normal",
             alpha=0.75, clip_on=True,
-            bbox=dict(boxstyle="round,pad=0.15", alpha=0.08, edgecolor="none"),
+            bbox=q_bbox,
         )
 
     # --- Mode tanpa diagonal/trim (layout kotak biasa) ---
     if not trimmed_like_example:
-        put_axes(0.23, 0.78, "Q1\nConcentrate Here")
-        put_axes(0.77, 0.78, "Q2\nKeep Up the Good Work")
-        put_axes(0.23, 0.22, "Q3\nLow Priority")
-        put_axes(0.77, 0.22, "Q4\nPossible Overkill")
+        # Posisi dibuat sedikit lebih "ke tengah" agar aman dari tepi
+        put_axes(0.25, 0.78, "Q1\nConcentrate Here")
+        put_axes(0.75, 0.78, "Q2\nKeep Up the Good Work")
+        put_axes(0.25, 0.22, "Q3\nLow Priority")
+        put_axes(0.75, 0.22, "Q4\nPossible Overkill")
         return
 
     # --- Mode diagonal + trimmed ---
@@ -795,38 +813,40 @@ def _annotate_quadrants(ax, x_cut, y_cut, trimmed_like_example=False):
     def clamp(v, lo, hi):
         return max(lo, min(hi, v))
 
-    # Margin kecil supaya tidak menempel garis
-    mx = 0.02 * (x1 - x0)
-    my = 0.02 * (y1 - y0)
+    # Margin kecil supaya label tidak menempel garis & tidak keluar plot
+    mx = 0.03 * (x1 - x0)
+    my = 0.03 * (y1 - y0)
 
     # Q1: kiri-atas, pastikan di atas diagonal
-    x_q1 = x0 + 0.28 * (x_cut - x0)
+    x_q1 = x0 + 0.30 * (x_cut - x0)
     y_q1 = y_cut + 0.55 * (y1 - y_cut)
     y_q1 = max(y_q1, y_diag(x_q1) + my)
+    x_q1 = clamp(x_q1, x0 + mx, x1 - mx)
     y_q1 = clamp(y_q1, y0 + my, y1 - my)
 
     # Q2: kanan, di atas y_cut tapi DI BAWAH diagonal
     x_q2 = x_cut + 0.62 * (x1 - x_cut)
     y_top_q2 = y_diag(x_q2) - my
-    # jika diagonal terlalu rendah (kasus ekstrim), fallback aman
     if y_top_q2 <= y_cut + my:
-        y_q2 = y_cut + 0.10 * (y1 - y_cut)
+        y_q2 = y_cut + 0.12 * (y1 - y_cut)
     else:
         y_q2 = y_cut + 0.45 * (y_top_q2 - y_cut)
+    x_q2 = clamp(x_q2, x0 + mx, x1 - mx)
     y_q2 = clamp(y_q2, y_cut + my, min(y_top_q2, y1 - my))
 
     # Q3: kiri, di kiri x_cut dan DI BAWAH diagonal
-    x_q3 = x0 + 0.38 * (x_cut - x0)
+    x_q3 = x0 + 0.40 * (x_cut - x0)
     y_top_q3 = y_diag(x_q3) - my
-    # ambil y cukup rendah agar terlihat "Low Priority" dan tetap < diagonal
     y_q3_cap = min(y_top_q3, y_cut - my) if (y_cut - my) > y0 else y_top_q3
-    y_q3 = y0 + 0.28 * (y_q3_cap - y0)
+    y_q3 = y0 + 0.30 * (y_q3_cap - y0)
+    x_q3 = clamp(x_q3, x0 + mx, x1 - mx)
     y_q3 = clamp(y_q3, y0 + my, y_top_q3)
 
     # Q4: kanan-bawah, pastikan di bawah diagonal (dan biasanya di bawah y_cut)
     x_q4 = x_cut + 0.65 * (x1 - x_cut)
-    y_q4 = y0 + 0.28 * (y_cut - y0)
+    y_q4 = y0 + 0.30 * (y_cut - y0)
     y_q4 = min(y_q4, y_diag(x_q4) - my)
+    x_q4 = clamp(x_q4, x0 + mx, x1 - mx)
     y_q4 = clamp(y_q4, y0 + my, y1 - my)
 
     put_data(x_q1, y_q1, "Q1\nConcentrate Here")

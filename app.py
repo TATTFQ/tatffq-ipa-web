@@ -702,13 +702,16 @@ def _plot_iso_diagonal(ax, x_cut, y_cut, xlim, ylim):
     ax.plot([x0, x1], [y0, y1], linestyle="--", linewidth=1.5)
 
 
+# =========================
+# IPA PLOTS (DIPERKECIL UNTUK DESKTOP)
+# =========================
 def plot_ipa_items(stats, x_cut, y_cut, show_iso_diagonal=False):
-    fig, ax = plt.subplots(figsize=(9, 6))
+    fig, ax = plt.subplots(figsize=(6.8, 4.8))
     ax.scatter(stats["Performance_mean"], stats["Importance_mean"])
     for _, r in stats.iterrows():
         if pd.isna(r["Performance_mean"]) or pd.isna(r["Importance_mean"]):
             continue
-        ax.text(r["Performance_mean"], r["Importance_mean"], r["Item"], fontsize=9)
+        ax.text(r["Performance_mean"], r["Importance_mean"], r["Item"], fontsize=8)
 
     ax.axvline(x_cut)
     ax.axhline(y_cut)
@@ -733,12 +736,12 @@ def plot_ipa_items(stats, x_cut, y_cut, show_iso_diagonal=False):
 
 
 def plot_ipa_dimensions(dim_stats, x_cut, y_cut, show_iso_diagonal=False):
-    fig, ax = plt.subplots(figsize=(9, 6))
+    fig, ax = plt.subplots(figsize=(6.8, 4.8))
     ax.scatter(dim_stats["Performance_mean"], dim_stats["Importance_mean"])
     for _, r in dim_stats.iterrows():
         if pd.isna(r["Performance_mean"]) or pd.isna(r["Importance_mean"]):
             continue
-        ax.text(r["Performance_mean"], r["Importance_mean"], r["Dimension"], fontsize=10)
+        ax.text(r["Performance_mean"], r["Importance_mean"], r["Dimension"], fontsize=9)
 
     ax.axvline(x_cut)
     ax.axhline(y_cut)
@@ -1302,6 +1305,7 @@ def render_admin_dashboard():
     # FILTER PERIODE (SEMUA ADMIN BISA PILIH)
     # =========================
     st.subheader("Filter Periode Ringkasan")
+    # DIHILANGKAN keterangan panjang soal timezone & basis waktu, sesuai request user
     st.caption("Filter ini mempengaruhi semua tab (Ringkasan & IPA, Raw Data, Kuadran, Profil & Durasi).")
 
     if "admin_filter_mode" not in st.session_state:
@@ -1391,7 +1395,7 @@ def render_admin_dashboard():
 
             st.subheader("Plot IPA (Data-centered) — Items")
             fig = plot_ipa_items(stats, x_cut, y_cut, show_iso_diagonal=False)
-            st.pyplot(fig)
+            st.pyplot(fig, use_container_width=True)
 
             st.divider()
 
@@ -1408,13 +1412,11 @@ def render_admin_dashboard():
 
             st.subheader("Plot IPA (Data-centered) — Dimensions")
             fig_dim = plot_ipa_dimensions(dim_stats, dx_cut, dy_cut, show_iso_diagonal=False)
-            st.pyplot(fig_dim)
+            st.pyplot(fig_dim, use_container_width=True)
 
     with tab2:
         st.subheader("Raw responses (flattened)")
-        st.caption(
-            "Kolom waktu per responden tersedia di: meta_started_at_utc, meta_submitted_at_utc, meta_duration_sec."
-        )
+        st.caption("Kolom awal diurutkan: respondent_code, started, submitted, duration, lalu profil, lalu kolom lainnya.")
         if len(df) == 0:
             st.info("Belum ada data (atau tidak ada data pada periode terpilih).")
             st.dataframe(df, use_container_width=True)
@@ -1433,13 +1435,46 @@ def render_admin_dashboard():
             ]
             show = show.drop(columns=[c for c in helper_time_cols if c in show.columns], errors="ignore")
 
-            # Urutan sort: pakai meta_submitted_at_utc kalau ada, kalau tidak pakai created_at
-            if "meta_submitted_at_utc" in show.columns:
-                sort_col = "meta_submitted_at_utc"
-            else:
-                sort_col = "created_at"
+            # --- Hilangkan prefix "meta_" (tampilan saja)
+            rename_map = {}
+            for c in show.columns:
+                if c.startswith("meta_"):
+                    rename_map[c] = c.replace("meta_", "", 1)
+            show = show.rename(columns=rename_map)
 
-            st.dataframe(show.sort_values(sort_col, ascending=False), use_container_width=True)
+            # --- Rename waktu jadi sesuai request: started, submitted, duration
+            show = show.rename(
+                columns={
+                    "started_at_utc": "started",
+                    "submitted_at_utc": "submitted",
+                    "duration_sec": "duration",
+                }
+            )
+
+            # --- Urutkan kolom depan: respondent_code, started, submitted, duration, lalu profil, lalu sisanya
+            preferred_front = ["respondent_code", "started", "submitted", "duration"]
+            preferred_profile = [
+                "age",
+                "gender",
+                "platform",
+                "specialty",
+                "telemedicine_duration",
+                "telemedicine_frequency",
+                "telemedicine_last_use",
+            ]
+
+            front = [c for c in preferred_front if c in show.columns]
+            prof = [c for c in preferred_profile if c in show.columns]
+            rest = [c for c in show.columns if c not in (front + prof)]
+
+            show = show[front + prof + rest]
+
+            # Sorting: pakai submitted kalau ada, fallback created_at
+            sort_col = "submitted" if "submitted" in show.columns else ("created_at" if "created_at" in show.columns else None)
+            if sort_col:
+                show = show.sort_values(sort_col, ascending=False)
+
+            st.dataframe(show, use_container_width=True)
 
     with tab3:
         if len(df) == 0:

@@ -742,6 +742,52 @@ def _plot_quadrant_lines(ax, x_cut, y_cut, trimmed_like_example=False):
 
 
 # =========================
+# QUADRANT LABELS (✅ ADDED)
+# =========================
+def _annotate_quadrants(ax, x_cut, y_cut, trimmed_like_example=False):
+    """
+    Menulis nama kuadran pada area plot.
+    - Versi 1: 4 kuadran standar (garis vertikal & horizontal penuh)
+    - Versi 2: tetap ditulis 4 kuadran, posisinya digeser sedikit agar aman dari garis trimmed/diagonal
+    """
+    x0, x1 = ax.get_xlim()
+    y0, y1 = ax.get_ylim()
+
+    def put(x, y, text):
+        ax.text(
+            x, y, text,
+            ha="center", va="center",
+            fontsize=11, fontweight="bold",
+            bbox=dict(boxstyle="round,pad=0.25", alpha=0.15, edgecolor="none")
+        )
+
+    q1_x = (x0 + x_cut) / 2
+    q1_y = (y_cut + y1) / 2
+
+    q2_x = (x_cut + x1) / 2
+    q2_y = (y_cut + y1) / 2
+
+    q3_x = (x0 + x_cut) / 2
+    q3_y = (y0 + y_cut) / 2
+
+    q4_x = (x_cut + x1) / 2
+    q4_y = (y0 + y_cut) / 2
+
+    if trimmed_like_example:
+        dx = 0.03 * (x1 - x0)
+        dy = 0.03 * (y1 - y0)
+        q1_x -= dx; q1_y += dy
+        q2_x += dx; q2_y += dy
+        q3_x -= dx; q3_y -= dy
+        q4_x += dx; q4_y -= dy
+
+    put(q1_x, q1_y, "Kuadran I\nConcentrate Here")
+    put(q2_x, q2_y, "Kuadran II\nKeep Up the Good Work")
+    put(q3_x, q3_y, "Kuadran III\nLow Priority")
+    put(q4_x, q4_y, "Kuadran IV\nPossible Overkill")
+
+
+# =========================
 # IPA PLOTS
 # =========================
 def plot_ipa_items(stats, x_cut, y_cut, show_iso_diagonal=False, trimmed_quadrant_lines=False, title_suffix=""):
@@ -765,6 +811,9 @@ def plot_ipa_items(stats, x_cut, y_cut, show_iso_diagonal=False, trimmed_quadran
     # diagonal
     if show_iso_diagonal:
         _plot_iso_diagonal(ax, x_cut, y_cut, ax.get_xlim(), ax.get_ylim(), with_endpoints=True)
+
+    # ✅ tambah label kuadran
+    _annotate_quadrants(ax, x_cut, y_cut, trimmed_like_example=trimmed_quadrant_lines)
 
     ax.set_title(f"IPA Matrix (Data-centered) — Items{title_suffix}")
     ax.set_xlabel("Performance (Mean)")
@@ -794,6 +843,9 @@ def plot_ipa_dimensions(dim_stats, x_cut, y_cut, show_iso_diagonal=False, trimme
     # diagonal
     if show_iso_diagonal:
         _plot_iso_diagonal(ax, x_cut, y_cut, ax.get_xlim(), ax.get_ylim(), with_endpoints=True)
+
+    # ✅ tambah label kuadran
+    _annotate_quadrants(ax, x_cut, y_cut, trimmed_like_example=trimmed_quadrant_lines)
 
     ax.set_title(f"IPA Matrix (Data-centered) — Dimensions{title_suffix}")
     ax.set_xlabel("Performance (Mean)")

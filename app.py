@@ -1432,9 +1432,6 @@ def render_admin_dashboard():
 
     st.divider()
 
-    st.subheader("Hapus Data")
-    st.caption("Fitur hapus data berdasarkan role admin: admin_general bisa hapus semua; admin provider hanya hapus data platform-nya.")
-
     # state init
     if "confirm_delete_all" not in st.session_state:
         st.session_state.confirm_delete_all = False
@@ -1468,7 +1465,7 @@ def render_admin_dashboard():
     # A) Hapus SEMUA data (TAMPILKAN HANYA UNTUK admin_general)
     # =========================
     if can_delete_all:
-        st.markdown("### A) Hapus semua data")
+        st.markdown("### Hapus semua data")
         st.caption("Aksi ini akan menghapus SEMUA respons di tabel responses dan tidak bisa dibatalkan.")
 
         colA, colB = st.columns([1, 3])
@@ -1498,7 +1495,7 @@ def render_admin_dashboard():
     # B) Hapus data PLATFORM saja (TAMPILKAN HANYA UNTUK admin provider)
     # =========================
     if can_delete_platform:
-        st.markdown("### B) Hapus data")
+        st.markdown("### Hapus data")
         st.caption(f"Aksi ini hanya menghapus respons dengan platform **{scope_platform}** dan tidak bisa dibatalkan.")
 
         colP1, colP2 = st.columns([1, 3])

@@ -676,7 +676,7 @@ def compute_dimension_stats_and_ipa(df_flat: pd.DataFrame):
     return dim_stats, x_cut, y_cut, quad_lists
 
 
-def _plot_iso_diagonal(ax, x_cut, y_cut, xlim, ylim):
+def _plot_iso_diagonal(ax, x_cut, y_cut, xlim, ylim, with_endpoints=True):
     """
     Garis diagonal 45°: y = x + b, melewati titik (x_cut, y_cut) -> b = y_cut - x_cut
     """
@@ -684,22 +684,73 @@ def _plot_iso_diagonal(ax, x_cut, y_cut, xlim, ylim):
     x0, x1 = xlim
     y0 = x0 + b
     y1 = x1 + b
-    ax.plot([x0, x1], [y0, y1], linestyle="--", linewidth=1.5)
+
+    # clip agar tetap berada di rentang y-limit (biar rapi)
+    ymin, ymax = ylim
+
+    pts = []
+    # cek titik potong dengan batas-batas kotak plot
+    # 1) x = x0 => y = y0
+    if ymin <= y0 <= ymax:
+        pts.append((x0, y0))
+    # 2) x = x1 => y = y1
+    if ymin <= y1 <= ymax:
+        pts.append((x1, y1))
+    # 3) y = ymin => ymin = x + b => x = ymin - b
+    xx = ymin - b
+    if x0 <= xx <= x1:
+        pts.append((xx, ymin))
+    # 4) y = ymax => x = ymax - b
+    xx = ymax - b
+    if x0 <= xx <= x1:
+        pts.append((xx, ymax))
+
+    # ambil 2 titik unik paling ujung
+    pts = list(dict.fromkeys(pts))
+    if len(pts) >= 2:
+        # pilih yang paling kiri dan paling kanan (berdasarkan x)
+        pts_sorted = sorted(pts, key=lambda t: t[0])
+        pA, pB = pts_sorted[0], pts_sorted[-1]
+        if with_endpoints:
+            ax.plot([pA[0], pB[0]], [pA[1], pB[1]], linestyle="-", linewidth=2.2, marker="o")
+        else:
+            ax.plot([pA[0], pB[0]], [pA[1], pB[1]], linestyle="-", linewidth=2.2)
+    else:
+        ax.plot([x0, x1], [y0, y1], linestyle="-", linewidth=2.2)
+
+
+def _plot_quadrant_lines(ax, x_cut, y_cut, trimmed_like_example=False):
+    """
+    - Default (Versi 1): axvline & axhline full.
+    - Trimmed (Versi 2): hanya gambar:
+        * garis vertikal x=x_cut dari bawah sampai y_cut
+        * garis horizontal y=y_cut dari x_cut sampai kanan
+      sehingga tidak ada garis pembagi kuadran di area atas/kiri diagonal (sesuai contoh).
+    """
+    x0, x1 = ax.get_xlim()
+    y0, y1 = ax.get_ylim()
+
+    if not trimmed_like_example:
+        ax.axvline(x_cut, linewidth=1.5)
+        ax.axhline(y_cut, linewidth=1.5)
+        return
+
+    # vertikal: dari bawah -> y_cut
+    ax.plot([x_cut, x_cut], [y0, y_cut], linewidth=2.2, marker="o", markevery=[1])
+    # horizontal: dari x_cut -> kanan
+    ax.plot([x_cut, x1], [y_cut, y_cut], linewidth=2.2, marker="o", markevery=[1])
 
 
 # =========================
 # IPA PLOTS
 # =========================
-def plot_ipa_items(stats, x_cut, y_cut, show_iso_diagonal=False, title_suffix=""):
+def plot_ipa_items(stats, x_cut, y_cut, show_iso_diagonal=False, trimmed_quadrant_lines=False, title_suffix=""):
     fig, ax = plt.subplots(figsize=(6.8, 4.8))
     ax.scatter(stats["Performance_mean"], stats["Importance_mean"])
     for _, r in stats.iterrows():
         if pd.isna(r["Performance_mean"]) or pd.isna(r["Importance_mean"]):
             continue
         ax.text(r["Performance_mean"], r["Importance_mean"], r["Item"], fontsize=8)
-
-    ax.axvline(x_cut)
-    ax.axhline(y_cut)
 
     x_vals = stats["Performance_mean"].dropna()
     y_vals = stats["Importance_mean"].dropna()
@@ -708,8 +759,12 @@ def plot_ipa_items(stats, x_cut, y_cut, show_iso_diagonal=False, title_suffix=""
         ax.set_xlim(float(x_vals.min()) - pad, float(x_vals.max()) + pad)
         ax.set_ylim(float(y_vals.min()) - pad, float(y_vals.max()) + pad)
 
+    # garis pembagi kuadran (full vs trimmed)
+    _plot_quadrant_lines(ax, x_cut, y_cut, trimmed_like_example=trimmed_quadrant_lines)
+
+    # diagonal
     if show_iso_diagonal:
-        _plot_iso_diagonal(ax, x_cut, y_cut, ax.get_xlim(), ax.get_ylim())
+        _plot_iso_diagonal(ax, x_cut, y_cut, ax.get_xlim(), ax.get_ylim(), with_endpoints=True)
 
     ax.set_title(f"IPA Matrix (Data-centered) — Items{title_suffix}")
     ax.set_xlabel("Performance (Mean)")
@@ -718,16 +773,13 @@ def plot_ipa_items(stats, x_cut, y_cut, show_iso_diagonal=False, title_suffix=""
     return fig
 
 
-def plot_ipa_dimensions(dim_stats, x_cut, y_cut, show_iso_diagonal=False, title_suffix=""):
+def plot_ipa_dimensions(dim_stats, x_cut, y_cut, show_iso_diagonal=False, trimmed_quadrant_lines=False, title_suffix=""):
     fig, ax = plt.subplots(figsize=(6.8, 4.8))
     ax.scatter(dim_stats["Performance_mean"], dim_stats["Importance_mean"])
     for _, r in dim_stats.iterrows():
         if pd.isna(r["Performance_mean"]) or pd.isna(r["Importance_mean"]):
             continue
         ax.text(r["Performance_mean"], r["Importance_mean"], r["Dimension"], fontsize=9)
-
-    ax.axvline(x_cut)
-    ax.axhline(y_cut)
 
     x_vals = dim_stats["Performance_mean"].dropna()
     y_vals = dim_stats["Importance_mean"].dropna()
@@ -736,8 +788,12 @@ def plot_ipa_dimensions(dim_stats, x_cut, y_cut, show_iso_diagonal=False, title_
         ax.set_xlim(float(x_vals.min()) - pad, float(x_vals.max()) + pad)
         ax.set_ylim(float(y_vals.min()) - pad, float(y_vals.max()) + pad)
 
+    # garis pembagi kuadran (full vs trimmed)
+    _plot_quadrant_lines(ax, x_cut, y_cut, trimmed_like_example=trimmed_quadrant_lines)
+
+    # diagonal
     if show_iso_diagonal:
-        _plot_iso_diagonal(ax, x_cut, y_cut, ax.get_xlim(), ax.get_ylim())
+        _plot_iso_diagonal(ax, x_cut, y_cut, ax.get_xlim(), ax.get_ylim(), with_endpoints=True)
 
     ax.set_title(f"IPA Matrix (Data-centered) — Dimensions{title_suffix}")
     ax.set_xlabel("Performance (Mean)")
@@ -1321,14 +1377,24 @@ def render_admin_dashboard():
             stats_show = _round_df_numeric(stats, 2)
             st.dataframe(stats_show.sort_values("Gap_mean(P-I)", ascending=True), use_container_width=True)
 
-            # ✅ VERSI 1: tanpa diagonal (yang lama tetap ada)
+            # ✅ VERSI 1: tanpa diagonal
             st.subheader("Plot IPA (Data-centered) — Items (Versi 1: Tanpa diagonal)")
-            fig1 = plot_ipa_items(stats, x_cut, y_cut, show_iso_diagonal=False, title_suffix=" (Tanpa diagonal)")
+            fig1 = plot_ipa_items(
+                stats, x_cut, y_cut,
+                show_iso_diagonal=False,
+                trimmed_quadrant_lines=False,
+                title_suffix=" (Tanpa diagonal)"
+            )
             st.pyplot(fig1, use_container_width=True)
 
-            # ✅ VERSI 2: dengan diagonal 45°
+            # ✅ VERSI 2: diagonal + garis kuadran trimmed (mirip contoh)
             st.subheader("Plot IPA (Data-centered) — Items (Versi 2: Dengan diagonal 45°)")
-            fig2 = plot_ipa_items(stats, x_cut, y_cut, show_iso_diagonal=True, title_suffix=" (Dengan diagonal)")
+            fig2 = plot_ipa_items(
+                stats, x_cut, y_cut,
+                show_iso_diagonal=True,
+                trimmed_quadrant_lines=True,
+                title_suffix=" (Dengan diagonal)"
+            )
             st.pyplot(fig2, use_container_width=True)
 
             st.divider()
@@ -1346,17 +1412,27 @@ def render_admin_dashboard():
 
             # ✅ VERSI 1: tanpa diagonal
             st.subheader("Plot IPA (Data-centered) — Dimensions (Versi 1: Tanpa diagonal)")
-            figd1 = plot_ipa_dimensions(dim_stats, dx_cut, dy_cut, show_iso_diagonal=False, title_suffix=" (Tanpa diagonal)")
+            figd1 = plot_ipa_dimensions(
+                dim_stats, dx_cut, dy_cut,
+                show_iso_diagonal=False,
+                trimmed_quadrant_lines=False,
+                title_suffix=" (Tanpa diagonal)"
+            )
             st.pyplot(figd1, use_container_width=True)
 
-            # ✅ VERSI 2: dengan diagonal 45°
+            # ✅ VERSI 2: diagonal + garis kuadran trimmed
             st.subheader("Plot IPA (Data-centered) — Dimensions (Versi 2: Dengan diagonal 45°)")
-            figd2 = plot_ipa_dimensions(dim_stats, dx_cut, dy_cut, show_iso_diagonal=True, title_suffix=" (Dengan diagonal)")
+            figd2 = plot_ipa_dimensions(
+                dim_stats, dx_cut, dy_cut,
+                show_iso_diagonal=True,
+                trimmed_quadrant_lines=True,
+                title_suffix=" (Dengan diagonal)"
+            )
             st.pyplot(figd2, use_container_width=True)
 
     with tab2:
-        st.subheader("Raw responses (flattened)")
-        st.caption("Kolom awal diurutkan: respondent_code, started, submitted, duration, lalu profil, lalu kolom lainnya.")
+        # ✅ rename + remove caption
+        st.subheader("Raw responses")
         if len(df) == 0:
             st.info("Belum ada data (atau tidak ada data pada periode terpilih).")
             st.dataframe(df, use_container_width=True)
@@ -1418,7 +1494,8 @@ def render_admin_dashboard():
             stats, _, _, quad_lists = compute_stats_and_ipa(df)
             dim_stats, _, _, dim_quad_lists = compute_dimension_stats_and_ipa(df)
 
-            st.subheader("Daftar item per kuadran (kode: isi item)")
+            # ✅ rename headings
+            st.subheader("Daftar item per kuadran")
             quad_order = [
                 "I - Concentrate Here",
                 "II - Keep Up the Good Work",
@@ -1436,7 +1513,7 @@ def render_admin_dashboard():
 
             st.divider()
 
-            st.subheader("Daftar dimensi per kuadran (kode: nama lengkap)")
+            st.subheader("Daftar dimensi per kuadran")
             for q in quad_order:
                 st.markdown(f"### {q}")
                 dims = dim_quad_lists.get(q, [])
@@ -1464,8 +1541,8 @@ def render_admin_dashboard():
             st.divider()
             st.subheader("Ringkasan Profil Responden")
 
-            def _vc(col):
-                s = df.get(col, pd.Series(dtype="object")).fillna("").astype(str)
+            def _value_counts_df(colname: str) -> pd.DataFrame:
+                s = df.get(colname, pd.Series(dtype="object")).fillna("").astype(str)
                 s = s[s.str.strip() != ""]
                 if s.empty:
                     return pd.DataFrame(columns=["Value", "Count"])
@@ -1473,21 +1550,52 @@ def render_admin_dashboard():
                 out.columns = ["Value", "Count"]
                 return out
 
+            def _profile_barh(title: str, colname: str, key_prefix: str):
+                counts = _value_counts_df(colname)
+                st.markdown(f"**{title}**")
+
+                if counts.empty:
+                    st.caption("Tidak ada data.")
+                    return
+
+                # chart + download button "di dekat bar chart"
+                left, right = st.columns([4.2, 1.2], vertical_alignment="center")
+
+                with left:
+                    fig, ax = plt.subplots(figsize=(6.5, 3.2))
+                    # supaya rapi: urutkan dari kecil->besar (barh enak dibaca)
+                    counts_plot = counts.sort_values("Count", ascending=True)
+                    ax.barh(counts_plot["Value"], counts_plot["Count"])
+                    ax.set_xlabel("Count")
+                    ax.set_ylabel("")
+                    ax.set_title("")
+                    plt.tight_layout()
+                    st.pyplot(fig, use_container_width=True)
+
+                with right:
+                    csv_bytes = counts.to_csv(index=False).encode("utf-8")
+                    st.download_button(
+                        label="⬇️ Download",
+                        data=csv_bytes,
+                        file_name=f"{key_prefix}_counts.csv",
+                        mime="text/csv",
+                        use_container_width=True,
+                    )
+
             cols = [
-                ("Jenis kelamin", "meta_gender"),
-                ("Usia", "meta_age"),
-                ("Bidang spesialisasi", "meta_specialty"),
-                ("Platform yang dinilai", "meta_platform"),
-                ("Lama menggunakan telemedicine", "meta_telemedicine_duration"),
-                ("Frekuensi telemedicine", "meta_telemedicine_frequency"),
-                ("Terakhir menggunakan telemedicine", "meta_telemedicine_last_use"),
+                ("Jenis kelamin", "meta_gender", "gender"),
+                ("Usia", "meta_age", "age"),
+                ("Bidang spesialisasi", "meta_specialty", "specialty"),
+                ("Platform yang dinilai", "meta_platform", "platform"),
+                ("Lama menggunakan telemedicine", "meta_telemedicine_duration", "tele_dur"),
+                ("Frekuensi telemedicine", "meta_telemedicine_frequency", "tele_freq"),
+                ("Terakhir menggunakan telemedicine", "meta_telemedicine_last_use", "tele_last"),
             ]
 
             grid = st.columns(2)
-            for idx, (title, colname) in enumerate(cols):
+            for idx, (title, colname, keyp) in enumerate(cols):
                 with grid[idx % 2]:
-                    st.markdown(f"**{title}**")
-                    st.dataframe(_vc(colname), use_container_width=True, height=220)
+                    _profile_barh(title, colname, keyp)
 
 
 # =========================

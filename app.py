@@ -1302,11 +1302,7 @@ def render_admin_dashboard():
     # FILTER PERIODE (SEMUA ADMIN BISA PILIH)
     # =========================
     st.subheader("Filter Periode Ringkasan")
-    st.caption(
-        "Filter ini mempengaruhi semua tab (Ringkasan & IPA, Raw Data, Kuadran, Profil & Durasi). "
-        "Tanggal mengikuti zona waktu **Asia/Jakarta**. "
-        "Basis waktu: **meta_submitted_at_utc** (jika ada) → fallback **created_at**."
-    )
+    st.caption("Filter ini mempengaruhi semua tab (Ringkasan & IPA, Raw Data, Kuadran, Profil & Durasi).")
 
     if "admin_filter_mode" not in st.session_state:
         st.session_state.admin_filter_mode = "Semua data"
@@ -1417,15 +1413,32 @@ def render_admin_dashboard():
     with tab2:
         st.subheader("Raw responses (flattened)")
         st.caption(
-            "Kolom waktu per responden tersedia di: meta_started_at_utc, meta_submitted_at_utc, meta_duration_sec. "
-            "Untuk filter periode dipakai: meta_submitted_at_utc (jika ada) / created_at (fallback) yang dikonversi ke WIB."
+            "Kolom waktu per responden tersedia di: meta_started_at_utc, meta_submitted_at_utc, meta_duration_sec."
         )
         if len(df) == 0:
             st.info("Belum ada data (atau tidak ada data pada periode terpilih).")
             st.dataframe(df, use_container_width=True)
         else:
             show = df.copy()
-            sort_col = "effective_time_local" if "effective_time_local" in show.columns else "created_at"
+
+            # Kolom bantu internal untuk filtering/perhitungan tanggal — tidak ditampilkan di raw data
+            helper_time_cols = [
+                "created_at_utc",
+                "created_at_local",
+                "meta_started_at_utc_dt",
+                "meta_submitted_at_utc_dt",
+                "meta_started_at_local",
+                "meta_submitted_at_local",
+                "effective_time_local",
+            ]
+            show = show.drop(columns=[c for c in helper_time_cols if c in show.columns], errors="ignore")
+
+            # Urutan sort: pakai meta_submitted_at_utc kalau ada, kalau tidak pakai created_at
+            if "meta_submitted_at_utc" in show.columns:
+                sort_col = "meta_submitted_at_utc"
+            else:
+                sort_col = "created_at"
+
             st.dataframe(show.sort_values(sort_col, ascending=False), use_container_width=True)
 
     with tab3:

@@ -788,41 +788,41 @@ def render_home():
     st.markdown(
         """
         <style>
-        /* Page padding */
         .block-container { padding-top: 2.2rem; padding-bottom: 2rem; }
 
-        /* Hero title */
         .hero-title {
             font-size: 2.6rem;
             font-weight: 800;
             line-height: 1.12;
             margin-bottom: .4rem;
         }
+
         .hero-subtitle {
             font-size: 1.05rem;
             opacity: .85;
             margin-bottom: 1.1rem;
         }
 
-        /* Cards */
         .card {
             border: 1px solid rgba(255,255,255,0.08);
             background: rgba(255,255,255,0.03);
             border-radius: 18px;
             padding: 18px 18px 14px 18px;
             box-shadow: 0 6px 22px rgba(0,0,0,0.10);
+            margin-bottom: 18px;
         }
+
         .card h3 {
             margin: 0 0 .25rem 0;
             font-size: 1.25rem;
         }
+
         .card p {
             margin: 0;
             opacity: .85;
             font-size: .96rem;
         }
 
-        /* Make buttons bigger */
         div.stButton > button {
             height: 3.05rem;
             border-radius: 14px;
@@ -830,7 +830,6 @@ def render_home():
             width: 100%;
         }
 
-        /* Footer */
         .footer {
             opacity: .7;
             font-size: .9rem;
@@ -842,34 +841,22 @@ def render_home():
     )
 
     # =========================
-    # HERO (Title + Subtitle)
+    # TITLE
     # =========================
     st.markdown(
         """
-        <div class="hero-title">Telemedicine Application Task–Technology Fit Questionnaire (TATTFQ)</div>
+        <div class="hero-title">
+        Telemedicine Application Task–Technology Fit Questionnaire (TATTFQ)
+        </div>
         <div class="hero-subtitle">
-            Survei singkat untuk menilai task-technology fit aplikasi telemedicine dari perspektif dokter.
+        Survei singkat untuk menilai task-technology fit aplikasi telemedicine dari perspektif dokter.
         </div>
         """,
         unsafe_allow_html=True
     )
 
     # =========================
-    # HERO IMAGE (file lokal) — diperkecil (tidak full width)
-    # =========================
-    HERO_IMG_FILE = "hero.png"  # <-- DIGANTI sesuai file yang sudah ada di repo
-    hero_path = os.path.join(os.path.dirname(__file__), HERO_IMG_FILE)
-
-    if os.path.exists(hero_path):
-        st.image(hero_path, width=900)
-    else:
-        st.warning(
-            f"Gambar hero tidak ditemukan: {HERO_IMG_FILE}. "
-            "Pastikan file gambar berada di folder yang sama dengan app.py (atau sesuaikan path)."
-        )
-
-    # =========================
-    # FLASH MESSAGE (after submit)
+    # FLASH MESSAGE
     # =========================
     if st.session_state.get("flash_success"):
         st.success(st.session_state["flash_success"])
@@ -878,46 +865,68 @@ def render_home():
     st.write("")
 
     # =========================
-    # ROLE CARDS + BUTTONS
+    # LAYOUT: IMAGE LEFT — BUTTONS RIGHT
     # =========================
-    c1, c2 = st.columns(2, gap="large")
+    col_left, col_right = st.columns([3, 1.4], gap="large")
 
-    with c1:
+    # LEFT — IMAGE
+    with col_left:
+        HERO_IMG_FILE = "hero.png"
+        hero_path = os.path.join(os.path.dirname(__file__), HERO_IMG_FILE)
+
+        if os.path.exists(hero_path):
+            # Diperkecil untuk desktop/web
+            st.image(hero_path, width=650)
+        else:
+            st.warning(
+                f"Gambar hero tidak ditemukan: {HERO_IMG_FILE}. "
+                "Pastikan file berada di folder yang sama dengan app.py."
+            )
+
+    # RIGHT — BUTTONS
+    with col_right:
+
         st.markdown(
             """
             <div class="card">
                 <h3>👤 Responden</h3>
-                <p>Isi profil singkat, lalu jawab <b>Performance</b> & <b>Importance</b> untuk setiap item.</p>
+                <p>Isi profil singkat, lalu jawab <b>Performance</b> & <b>Importance</b>.</p>
             </div>
             """,
             unsafe_allow_html=True
         )
+
         if st.button("Mulai Mengisi Kuesioner", type="primary"):
             st.session_state.view = "respondent"
             _new_respondent_session()
             _request_scroll_to_top()
             st.rerun()
 
-    with c2:
+        st.write("")
+
         st.markdown(
             """
             <div class="card">
                 <h3>🔐 Admin</h3>
-                <p>Lihat hasil survei.</p>
+                <p>Lihat dan analisis hasil survei.</p>
             </div>
             """,
             unsafe_allow_html=True
         )
+
         if st.button("Masuk Admin Dashboard", type="secondary"):
             st.session_state.view = "admin_login"
             st.session_state.admin_pwd_attempt = False
             _request_scroll_to_top()
             st.rerun()
 
+    # =========================
+    # FOOTER
+    # =========================
     st.markdown(
         """
         <div class="footer">
-            © TATTFQ Survey • Dibuat dengan Streamlit • Data tersimpan di database
+        © TATTFQ Survey • Dibuat dengan Streamlit • Data tersimpan di database
         </div>
         """,
         unsafe_allow_html=True

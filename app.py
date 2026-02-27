@@ -1279,14 +1279,7 @@ def render_respondent():
             st.session_state._enter_step = False
 
         st.header("Tahap 2 — Performance (Tingkat Persetujuan)")
-        st.info("Pada bagian ini, Bapak/Ibu Dokter akan diminta untuk memberikan penilaian berupa tingkat kesetujuan terhadap setiap pernyataan (item kuesioner) menggunakan skala berikut: 
-1 = Sangat tidak setuju;
-2 = Tidak setuju;
-3 = Agak tidak setuju;
-4 = Agak setuju;
-5 = Setuju;
-6 = Sangat setuju. 
-Penilaian tingkat kesetujuan mencerminkan sejauh mana pernyataan dalam kuesioner sesuai dengan kondisi nyata yang Bapak/Ibu Dokter alami.")
+        st.info("Pada bagian ini, Bapak/Ibu Dokter akan diminta untuk memberikan penilaian berupa tingkat kesetujuan terhadap setiap pernyataan (item kuesioner). Penilaian tingkat kesetujuan mencerminkan sejauh mana pernyataan dalam kuesioner sesuai dengan kondisi nyata yang Bapak/Ibu Dokter alami.")
 
         for dim, items in DIMS.items():
             st.subheader(dim)

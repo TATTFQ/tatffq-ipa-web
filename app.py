@@ -1156,7 +1156,7 @@ def render_home():
     st.markdown(
         """
         <div class="footer">
-        © TATTFQ Survey • Dibuat dengan Streamlit • Data tersimpan di database
+        © TATTFQ Survey
         </div>
         """,
         unsafe_allow_html=True

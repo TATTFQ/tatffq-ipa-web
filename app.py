@@ -1265,7 +1265,7 @@ def render_respondent():
             missing.append("Terakhir menggunakan telemedicine")
 
         if missing:
-            st.info("Lengkapi dulu: " + ", ".join(missing))
+            st.info("Lengkapi terlebih dahulu: " + ", ".join(missing))
 
         if st.button("Lanjut ke Tahap 2 (Performance) ➜", type="primary", disabled=bool(missing)):
             _enter_step(1)

@@ -1318,7 +1318,7 @@ def render_respondent():
             st.session_state._enter_step = False
 
         st.header("Tahap 3 — Importance (Tingkat Kepentingan)")
-        st.info("Nilai seberapa penting kemampuan/fungsi ini untuk mendukung tugas Anda dalam layanan kesehatan jarak jauh.")
+        st.info("Pada bagian ini, Anda diminta untuk menilai seberapa penting pernyataan (item kuesioner) ini untuk mendukung tugas Anda dalam layanan kesehatan jarak jauh.")
 
         for dim, items in DIMS.items():
             st.subheader(dim)

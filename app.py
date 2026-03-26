@@ -22,7 +22,7 @@ DB_URL = st.secrets.get("SUPABASE_DB_URL", os.getenv("SUPABASE_DB_URL", ""))
 # admin_general: bisa lihat semua data
 # admin_* lainnya: hanya bisa lihat data sesuai platform yang dinilai
 ADMIN_USERS = {
-    "admin_general": {"password": "admin123", "platform": None},
+    "admin_general": {"password": "admin_general123", "platform": None},
     "admin_alodokter": {"password": "admin_alodokter123", "platform": "Alodokter"},
     "admin_gooddoctor": {"password": "admin_gooddoctor123", "platform": "Good Doctor"},
     "admin_halodoc": {"password": "admin_halodoc123", "platform": "Halodoc"},
